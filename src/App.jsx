@@ -9,13 +9,10 @@ import { embedSignature } from "./services/pdfSigner.js";
 // ─── Dev Mode ───────────────────────────────────────────────────────────────
 const DEV_MODE = import.meta.env.VITE_DEV_MODE === "true";
 
-// ─── Workshop SDK (only loaded in production) ───────────────────────────────
-let useWorkshopContext, visitLoadingState, SIGNING_WIDGET_CONFIG;
-if (!DEV_MODE) {
-    ({ useWorkshopContext } = await import("@osdk/workshop-iframe-custom-widget"));
-    ({ visitLoadingState } = await import("@osdk/workshop-iframe-custom-widget"));
-    ({ SIGNING_WIDGET_CONFIG } = await import("./workshopConfig.js"));
-}
+// ─── Workshop SDK ───────────────────────────────────────────────────────────
+// These are only used in production (WorkshopApp). Vite tree-shakes them in dev.
+import { useWorkshopContext, visitLoadingState } from "@osdk/workshop-iframe-custom-widget";
+import { SIGNING_WIDGET_CONFIG } from "./workshopConfig.js";
 
 // ─── App states ─────────────────────────────────────────────────────────────
 //   WAITING → LOADING → VIEWING ↔ SIGNING ↔ PLACING → SUBMITTING → DONE | ERROR
