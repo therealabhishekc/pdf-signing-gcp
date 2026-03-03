@@ -53,6 +53,7 @@ function App({ workshopCtx }) {
     const [placedSigs, setPlacedSigs] = useState([]);        // [{ pageIndex, x, y, w, h, dataUrl }]
     const [error, setError] = useState(null);
     const pdfViewerRef = useRef(null);
+    const lastLoadedRid = useRef(null);                      // track which RID is currently displayed
 
     // ── Dev mode: load sample PDF ────────────────────────────────────────────
     useEffect(() => {
@@ -72,19 +73,34 @@ function App({ workshopCtx }) {
     }, []);
 
     // ── Production: react to Workshop context changes ────────────────────────
-    // When Workshop provides a pdfAttachmentRid via the SDK, download the PDF.
+    // Re-downloads the PDF whenever pdfAttachmentRid changes (e.g. user selects
+    // a different Files object in Workshop → variable updates → new PDF loads).
     useEffect(() => {
         if (DEV_MODE || !workshopCtx) return;
 
         const ridField = workshopCtx.pdfAttachmentRid?.fieldValue;
         // The field value is wrapped in an async state: { status, value }
-        if (!ridField || ridField.status !== "LOADED" || !ridField.value) return;
+        if (!ridField || ridField.status !== "LOADED" || !ridField.value) {
+            // RID cleared — go back to empty state
+            if (ridField?.status === "LOADED" && !ridField.value) {
+                lastLoadedRid.current = null;
+                setPdfData(null);
+                setPlacedSigs([]);
+                setAppState("WAITING");
+            }
+            return;
+        }
 
         const attachmentRid = ridField.value;
 
-        // Don't re-download if we already have this PDF
-        if (pdfData && appState !== "WAITING") return;
+        // Skip if this is the same RID we already have loaded
+        if (attachmentRid === lastLoadedRid.current) return;
 
+        // New RID — reset state and download the new PDF
+        lastLoadedRid.current = attachmentRid;
+        setPdfData(null);
+        setPlacedSigs([]);
+        setCurrentPage(1);
         setAppState("LOADING");
         (async () => {
             try {
@@ -177,7 +193,7 @@ function App({ workshopCtx }) {
             setError(err.message);
             setAppState("ERROR");
         }
-    }, [pdfData, placedSigs, workshopCtx]);
+    }, [pdfData, placedSigs, workshopCtx]); // filesPrimaryKey removed — no longer needed
 
     const handleRetry = () => {
         setError(null);

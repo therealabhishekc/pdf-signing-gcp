@@ -10,10 +10,10 @@ export default function StatusOverlay({ state, error, onRetry }) {
 
     const stateConfig = {
         WAITING: {
-            icon: "⏳",
-            title: "Waiting for Document",
-            description: "Awaiting PDF attachment from Workshop…",
-            showSpinner: true,
+            icon: "📄",
+            title: "No Document To Display",
+            description: "No PDF has been assigned to this widget yet.",
+            showSpinner: false,
         },
         LOADING: {
             icon: "📄",

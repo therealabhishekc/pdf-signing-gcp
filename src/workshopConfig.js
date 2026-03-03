@@ -24,20 +24,8 @@ export const SIGNING_WIDGET_CONFIG = [
             },
         },
     },
-    {
-        fieldId: "fileObjectPrimaryKey",
-        field: {
-            type: "single",
-            label: "File Object Primary Key",
-            fieldValue: {
-                type: "inputOutput",
-                variableType: {
-                    type: "string",
-                    defaultValue: undefined,
-                },
-            },
-        },
-    },
+
+
     {
         fieldId: "signedAttachmentRid",
         field: {
