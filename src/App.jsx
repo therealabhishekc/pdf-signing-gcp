@@ -52,8 +52,16 @@ function App({ workshopCtx }) {
     const [pendingSig, setPendingSig] = useState(null);      // { dataUrl }
     const [placedSigs, setPlacedSigs] = useState([]);        // [{ pageIndex, x, y, w, h, dataUrl }]
     const [error, setError] = useState(null);
+    const [signedRid, setSignedRid] = useState(null);        // RID of uploaded signed PDF
     const pdfViewerRef = useRef(null);
     const lastLoadedRid = useRef(null);                      // track which RID is currently displayed
+
+    // Derive isSigned from Workshop context (boolean variable)
+    const isSigned = DEV_MODE
+        ? false
+        : workshopCtx?.isSigned?.fieldValue?.status === "LOADED"
+            ? (workshopCtx.isSigned.fieldValue.value ?? false)
+            : false;
 
     // ── Dev mode: load sample PDF ────────────────────────────────────────────
     useEffect(() => {
@@ -187,6 +195,7 @@ function App({ workshopCtx }) {
                 // 3. Fire the onSignComplete event → Workshop triggers bound Action
                 workshopCtx.onSignComplete.executeEvent();
 
+                setSignedRid(signedRid);
                 setAppState("DONE");
             }
         } catch (err) {
@@ -207,7 +216,7 @@ function App({ workshopCtx }) {
     return (
         <div className="app">
             {/* Status overlays for non-viewing states */}
-            <StatusOverlay state={appState} error={error} onRetry={handleRetry} />
+            <StatusOverlay state={appState} error={error} onRetry={handleRetry} signedRid={signedRid} />
 
             {/* Main PDF workspace */}
             {isViewing && (
@@ -224,6 +233,7 @@ function App({ workshopCtx }) {
                         onSubmit={handleSubmit}
                         canSubmit={placedSigs.length > 0}
                         isPlacing={appState === "PLACING"}
+                        isSigned={isSigned}
                     />
 
                     <div className="pdf-workspace" ref={pdfViewerRef}>

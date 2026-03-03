@@ -27,6 +27,20 @@ export const SIGNING_WIDGET_CONFIG = [
 
 
     {
+        fieldId: "isSigned",
+        field: {
+            type: "single",
+            label: "Is Signed",
+            fieldValue: {
+                type: "inputOutput",
+                variableType: {
+                    type: "boolean",
+                    defaultValue: false,
+                },
+            },
+        },
+    },
+    {
         fieldId: "signedAttachmentRid",
         field: {
             type: "single",

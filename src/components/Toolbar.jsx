@@ -15,6 +15,7 @@ export default function Toolbar({
     onSubmit,
     canSubmit,
     isPlacing,
+    isSigned,         // boolean from Workshop — hides Sign button if doc already signed
 }) {
     return (
         <div className="toolbar">
@@ -51,12 +52,18 @@ export default function Toolbar({
             </div>
 
             <div className="toolbar-section toolbar-right">
-                {!isPlacing && (
-                    <button className="btn btn-secondary" onClick={onAddSignature} title="Open signature pad">
-                        ✍️ Sign
-                    </button>
+                {isSigned ? (
+                    <span className="signed-badge" title="This document has already been signed">
+                        ✅ Doc Already Signed
+                    </span>
+                ) : (
+                    !isPlacing && (
+                        <button className="btn btn-secondary" onClick={onAddSignature} title="Open signature pad">
+                            ✍️ Sign
+                        </button>
+                    )
                 )}
-                {canSubmit && (
+                {canSubmit && !isSigned && (
                     <button className="btn btn-primary" onClick={onSubmit} title="Submit signed document">
                         📤 Submit
                     </button>
