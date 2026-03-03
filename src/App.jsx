@@ -56,12 +56,11 @@ function App({ workshopCtx }) {
     const pdfViewerRef = useRef(null);
     const lastLoadedRid = useRef(null);                      // track which RID is currently displayed
 
-    // Derive isSigned from Workshop context (boolean variable)
-    const isSigned = DEV_MODE
-        ? false
-        : workshopCtx?.isSigned?.fieldValue?.status === "LOADED"
-            ? (workshopCtx.isSigned.fieldValue.value ?? false)
-            : false;
+    // isSigned is only true when Workshop explicitly sends boolean true.
+    // null, undefined, false, or unloaded state → false → Sign button shown.
+    const isSigned = !DEV_MODE &&
+        workshopCtx?.isSigned?.fieldValue?.status === "LOADED" &&
+        workshopCtx?.isSigned?.fieldValue?.value === true;
 
     // ── Dev mode: load sample PDF ────────────────────────────────────────────
     useEffect(() => {
