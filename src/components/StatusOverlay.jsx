@@ -3,7 +3,7 @@ import React from "react";
 /**
  * Fullscreen overlay for loading, success, and error states.
  */
-export default function StatusOverlay({ state, error, onRetry, signedRid }) {
+export default function StatusOverlay({ state, error, onRetry, onClose }) {
     if (state === "VIEWING" || state === "SIGNING" || state === "PLACING") {
         return null;
     }
@@ -49,18 +49,17 @@ export default function StatusOverlay({ state, error, onRetry, signedRid }) {
     return (
         <div className={`status-overlay ${config.success ? "status-overlay--success" : ""} ${config.isError ? "status-overlay--error" : ""}`}>
             <div className="status-card">
+                {config.success && onClose && (
+                    <button className="status-close-btn" onClick={onClose} title="Close">
+                        ✕
+                    </button>
+                )}
                 <div className="status-icon">{config.icon}</div>
                 <h2 className="status-title">{config.title}</h2>
                 <p className="status-description">{config.description}</p>
                 {config.showSpinner && (
                     <div className="spinner">
                         <div className="spinner-ring" />
-                    </div>
-                )}
-                {state === "DONE" && signedRid && (
-                    <div className="signed-rid-box">
-                        <p className="signed-rid-label">Signed PDF Attachment RID</p>
-                        <code className="signed-rid-value">{signedRid}</code>
                     </div>
                 )}
                 {config.isError && onRetry && (

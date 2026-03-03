@@ -211,12 +211,18 @@ function App({ workshopCtx }) {
         setAppState(DEV_MODE ? "LOADING" : "WAITING");
     };
 
+    // Close the DONE overlay and go back to VIEWING (PDF will show the updated RID from Action)
+    const handleDoneClose = () => {
+        setPlacedSigs([]);
+        setAppState("VIEWING");
+    };
+
     const isViewing = appState === "VIEWING" || appState === "SIGNING" || appState === "PLACING";
 
     return (
         <div className="app">
             {/* Status overlays for non-viewing states */}
-            <StatusOverlay state={appState} error={error} onRetry={handleRetry} signedRid={signedRid} />
+            <StatusOverlay state={appState} error={error} onRetry={handleRetry} onClose={handleDoneClose} />
 
             {/* Main PDF workspace */}
             {isViewing && (
