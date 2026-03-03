@@ -5,9 +5,10 @@ import React, { useRef, useState, useCallback } from "react";
  * Lets the user click-and-drag to position + resize the signature ghost image.
  * Calls onPlace({ x, y, width, height }) when done.
  */
-export default function SignaturePlacer({ signatureDataUrl, canvasRect, onPlace, onCancel }) {
+export default function SignaturePlacer({ signatureDataUrl, zoom = 1, onPlace, onCancel }) {
     const containerRef = useRef(null);
-    const [pos, setPos] = useState({ x: 60, y: 60, width: 200, height: 60 });
+    // Initial size in canvas pixels = PDF-point size × zoom
+    const [pos, setPos] = useState({ x: 60, y: 60, width: Math.round(200 * zoom), height: Math.round(60 * zoom) });
     const [dragging, setDragging] = useState(false);
     const dragStart = useRef(null);
 

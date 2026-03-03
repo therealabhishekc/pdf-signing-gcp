@@ -18,6 +18,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
  *   onPageLoaded: (totalPages) => void
  *   pendingSignature: { dataUrl, width, height } | null — signature waiting to be placed
  *   placedSignatures: [{ pageIndex, x, y, width, height, dataUrl }]
+ *   overlayContent: ReactNode | null — rendered inside .pdf-viewer, same coordinate space as canvas
  */
 export default function PdfViewer({
     pdfData,
@@ -25,10 +26,12 @@ export default function PdfViewer({
     zoom,
     onPageLoaded,
     placedSignatures = [],
+    overlayContent = null,   // ← rendered inside .pdf-viewer, same coordinate space as canvas
 }) {
     const canvasRef = useRef(null);
     const pdfDocRef = useRef(null);
     const [loading, setLoading] = useState(false);
+    const [pdfReady, setPdfReady] = useState(false); // flips true once PDF.js finishes loading
     const renderTaskRef = useRef(null);
 
     // Load PDF document from ArrayBuffer
@@ -45,6 +48,7 @@ export default function PdfViewer({
                 const loadingTask = pdfjsLib.getDocument({ data: typedArray });
                 const pdf = await loadingTask.promise;
                 pdfDocRef.current = pdf;
+                setPdfReady(true);  // triggers renderPage to re-run now that the doc is ready
                 onPageLoaded?.(pdf.numPages);
             } catch (err) {
                 console.error("Failed to load PDF:", err);
@@ -79,12 +83,13 @@ export default function PdfViewer({
             await renderTask.promise;
 
             // Draw placed signatures on top
+            // Stored coords are in PDF points; multiply by zoom → canvas pixels
             for (const sig of placedSignatures) {
                 if (sig.pageIndex !== currentPage - 1) continue;
                 const img = new Image();
                 img.src = sig.dataUrl;
                 await new Promise((res) => { img.onload = res; });
-                ctx.drawImage(img, sig.x, sig.y, sig.width, sig.height);
+                ctx.drawImage(img, sig.x * zoom, sig.y * zoom, sig.width * zoom, sig.height * zoom);
             }
         } catch (err) {
             if (err?.name !== "RenderingCancelledException") {
@@ -93,7 +98,7 @@ export default function PdfViewer({
         } finally {
             setLoading(false);
         }
-    }, [currentPage, zoom, placedSignatures]);
+    }, [currentPage, zoom, placedSignatures, pdfReady]);
 
     useEffect(() => {
         renderPage();
@@ -103,6 +108,7 @@ export default function PdfViewer({
         <div className="pdf-viewer">
             {loading && <div className="pdf-loading-badge">Rendering…</div>}
             <canvas ref={canvasRef} className="pdf-canvas" />
+            {overlayContent}
         </div>
     );
 }

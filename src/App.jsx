@@ -14,13 +14,14 @@ const DEV_MODE = import.meta.env.VITE_DEV_MODE === "true";
 
 export default function App() {
     const [appState, setAppState] = useState(DEV_MODE ? "LOADING" : "WAITING");
-    const [pdfData, setPdfData] = useState(null);        // ArrayBuffer
+    const [pdfData, setPdfData] = useState(null);           // ArrayBuffer
     const [totalPages, setTotalPages] = useState(0);
     const [currentPage, setCurrentPage] = useState(1);
     const [zoom, setZoom] = useState(1.0);
-    const [pendingSig, setPendingSig] = useState(null);   // { dataUrl }
-    const [placedSigs, setPlacedSigs] = useState([]);     // [{ pageIndex, x, y, w, h, dataUrl }]
+    const [pendingSig, setPendingSig] = useState(null);      // { dataUrl }
+    const [placedSigs, setPlacedSigs] = useState([]);        // [{ pageIndex, x, y, w, h, dataUrl }]
     const [error, setError] = useState(null);
+    const [filesPrimaryKey, setFilesPrimaryKey] = useState(null); // which Files object to update
     const pdfViewerRef = useRef(null);
 
     // ── Dev mode: load sample PDF ────────────────────────────────────────────
@@ -44,14 +45,15 @@ export default function App() {
     useEffect(() => {
         if (DEV_MODE) return;
         const handler = async (event) => {
-            const { pdfAttachmentRid } = event.data ?? {};
+            // Workshop sends: { pdfAttachmentRid, filesPrimaryKey }
+            const { pdfAttachmentRid, filesPrimaryKey: fk } = event.data ?? {};
             if (!pdfAttachmentRid) return;
             setAppState("LOADING");
             try {
-                const { getClient } = await import("./services/foundryClient.js");
                 const { downloadPdf } = await import("./services/attachmentService.js");
-                const buffer = await downloadPdf(getClient(), pdfAttachmentRid);
+                const buffer = await downloadPdf(pdfAttachmentRid);
                 setPdfData(buffer);
+                setFilesPrimaryKey(fk ?? null);  // remember which Files object this PDF belongs to
                 setAppState("VIEWING");
             } catch (err) {
                 setError(err.message);
@@ -77,20 +79,21 @@ export default function App() {
     };
 
     const handleSignaturePlaced = useCallback(({ x, y, width, height }) => {
+        // Divide by zoom to convert canvas pixels → PDF points
         setPlacedSigs((prev) => [
             ...prev,
             {
                 pageIndex: currentPage - 1,
-                x,
-                y,
-                width,
-                height,
+                x: x / zoom,
+                y: y / zoom,
+                width: width / zoom,
+                height: height / zoom,
                 dataUrl: pendingSig.dataUrl,
             },
         ]);
         setPendingSig(null);
         setAppState("VIEWING");
-    }, [currentPage, pendingSig]);
+    }, [currentPage, pendingSig, zoom]);
 
     const handleCancelPlace = () => {
         setPendingSig(null);
@@ -103,7 +106,6 @@ export default function App() {
         setAppState("SUBMITTING");
         try {
             let modifiedBytes = pdfData;
-            // Embed each signature sequentially
             for (const sig of placedSigs) {
                 modifiedBytes = await embedSignature(
                     modifiedBytes,
@@ -113,7 +115,7 @@ export default function App() {
             }
 
             if (DEV_MODE) {
-                // Download locally in dev mode
+                // ── Dev mode: download locally ────────────────────────────
                 const blob = new Blob([modifiedBytes], { type: "application/pdf" });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement("a");
@@ -123,10 +125,20 @@ export default function App() {
                 setTimeout(() => URL.revokeObjectURL(url), 5000);
                 setAppState("DONE");
             } else {
-                // Upload to Foundry and notify Workshop
-                const { getClient } = await import("./services/foundryClient.js");
-                const { uploadSignedPdf } = await import("./services/attachmentService.js");
-                const signedRid = await uploadSignedPdf(getClient(), modifiedBytes);
+                // ── Production flow ───────────────────────────────────────
+                // 1. Upload signed PDF to Foundry attachments → get RID
+                // 2. PATCH that RID onto Files[pk].attachment
+                // (Both steps handled inside attachSignedPdfToFileObject)
+                const { attachSignedPdfToFileObject } = await import("./services/ontologyService.js");
+
+                if (!filesPrimaryKey) {
+                    throw new Error("No file object primary key received from Workshop — cannot attach signed PDF.");
+                }
+
+                // Returns the attachment RID after uploading + linking to the object
+                const signedRid = await attachSignedPdfToFileObject(filesPrimaryKey, modifiedBytes, "signed_document.pdf");
+
+                // Notify Workshop with the signed attachment RID
                 window.parent.postMessage({ signedAttachmentRid: signedRid }, "*");
                 setAppState("DONE");
             }
@@ -134,7 +146,7 @@ export default function App() {
             setError(err.message);
             setAppState("ERROR");
         }
-    }, [pdfData, placedSigs]);
+    }, [pdfData, placedSigs, filesPrimaryKey]);
 
     const handleRetry = () => {
         setError(null);
@@ -174,6 +186,16 @@ export default function App() {
                             zoom={zoom}
                             onPageLoaded={setTotalPages}
                             placedSignatures={placedSigs}
+                            overlayContent={
+                                appState === "PLACING" && pendingSig ? (
+                                    <SignaturePlacer
+                                        signatureDataUrl={pendingSig.dataUrl}
+                                        zoom={zoom}
+                                        onPlace={handleSignaturePlaced}
+                                        onCancel={handleCancelPlace}
+                                    />
+                                ) : null
+                            }
                         />
 
                         {/* Floating signature counter badge */}
@@ -181,15 +203,6 @@ export default function App() {
                             <div className="sig-count-badge">
                                 {placedSigs.length} signature{placedSigs.length > 1 ? "s" : ""}
                             </div>
-                        )}
-
-                        {/* Signature placer overlay */}
-                        {appState === "PLACING" && pendingSig && (
-                            <SignaturePlacer
-                                signatureDataUrl={pendingSig.dataUrl}
-                                onPlace={handleSignaturePlaced}
-                                onCancel={handleCancelPlace}
-                            />
                         )}
                     </div>
                 </>
