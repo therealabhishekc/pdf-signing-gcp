@@ -45,8 +45,8 @@ export default function App() {
     useEffect(() => {
         if (DEV_MODE) return;
         const handler = async (event) => {
-            // Workshop sends: { pdfAttachmentRid, filesPrimaryKey }
-            const { pdfAttachmentRid, filesPrimaryKey: fk } = event.data ?? {};
+            // Workshop sends: { pdfAttachmentRid, fileObjectPrimaryKey }
+            const { pdfAttachmentRid, fileObjectPrimaryKey: fk } = event.data ?? {};
             if (!pdfAttachmentRid) return;
             setAppState("LOADING");
             try {
@@ -126,17 +126,18 @@ export default function App() {
                 setAppState("DONE");
             } else {
                 // ── Production flow ───────────────────────────────────────
-                // 1. Upload signed PDF to Foundry attachments → get RID
-                // 2. PATCH that RID onto Files[pk].attachment
-                // (Both steps handled inside attachSignedPdfToFileObject)
-                const { attachSignedPdfToFileObject } = await import("./services/ontologyService.js");
+                const { uploadSignedPdf } = await import("./services/attachmentService.js");
 
-                if (!filesPrimaryKey) {
-                    throw new Error("No file object primary key received from Workshop — cannot attach signed PDF.");
+                let signedRid;
+                if (filesPrimaryKey) {
+                    // Upload + link to the Files object's attachment property
+                    const { attachSignedPdfToFileObject } = await import("./services/ontologyService.js");
+                    signedRid = await attachSignedPdfToFileObject(filesPrimaryKey, modifiedBytes, "signed_document.pdf");
+                } else {
+                    // No object key provided — just upload and return the RID to Workshop
+                    console.warn("No fileObjectPrimaryKey received — uploading PDF without linking to ontology object.");
+                    signedRid = await uploadSignedPdf(modifiedBytes, "signed_document.pdf");
                 }
-
-                // Returns the attachment RID after uploading + linking to the object
-                const signedRid = await attachSignedPdfToFileObject(filesPrimaryKey, modifiedBytes, "signed_document.pdf");
 
                 // Notify Workshop with the signed attachment RID
                 window.parent.postMessage({ signedAttachmentRid: signedRid }, "*");
