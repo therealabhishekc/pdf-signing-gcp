@@ -128,47 +128,62 @@ app.post(
  * Body: { objectPrimaryKey, attachmentRid }
  * Links the uploaded attachment to the Files object's attachment property.
  */
-app.post("/api/attach-to-object", async (req, res) => {
-    const { objectPrimaryKey, attachmentRid } = req.body ?? {};
-    if (!objectPrimaryKey || !attachmentRid) {
-        return res.status(400).json({ error: "objectPrimaryKey and attachmentRid are required" });
-    }
-
-    try {
-        const token = await getToken();
-
-        // Try the Foundry v2 attachment property endpoint:
-        // PUT /api/v2/ontologies/{ontology}/objects/{type}/{pk}/attachments/{property}
-        // with body: { rid: "ri.attachments.main.attachment.xxx" }
-        const url = `${STACK}/api/v2/ontologies/${encodeURIComponent(ONTOLOGY)}/objects/${encodeURIComponent(OBJECT_TYPE)}/${encodeURIComponent(objectPrimaryKey)}/attachments/${encodeURIComponent(ATTACH_PROP)}`;
-
-        console.log(`[attach-to-object] PUT ${url}`);
-
-        const foundryRes = await fetch(url, {
-            method: "PUT",
-            headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ rid: attachmentRid }),
-        });
-
-        const responseText = await foundryRes.text();
-        console.log(`[attach-to-object] Foundry response ${foundryRes.status}: ${responseText}`);
-
-        if (!foundryRes.ok) {
-            return res.status(foundryRes.status).json({
-                error: responseText,
-                debug: { url, ontology: ONTOLOGY, objectType: OBJECT_TYPE, property: ATTACH_PROP }
-            });
+/**
+ * POST /api/attach-to-object?primaryKey=...&filename=...
+ * Body: raw binary PDF (application/octet-stream)
+ *
+ * Posts the PDF directly to the Foundry attachment property endpoint,
+ * which both uploads the file AND sets it on the object property.
+ * POST /api/v2/ontologies/{ont}/objects/{type}/{pk}/attachments/{property}
+ */
+app.post(
+    "/api/attach-to-object",
+    express.raw({ type: "application/octet-stream", limit: "100mb" }),
+    async (req, res) => {
+        const { primaryKey, filename = "signed_document.pdf" } = req.query;
+        if (!primaryKey) {
+            return res.status(400).json({ error: "primaryKey query param is required" });
         }
 
-        res.json({ success: true, attachmentRid });
-    } catch (err) {
-        console.error("[attach-to-object]", err);
-        res.status(500).json({ error: err.message });
+        try {
+            const token = await getToken();
+
+            // POST binary directly to the object's attachment property
+            // This uploads AND sets the property in one API call
+            const url = `${STACK}/api/v2/ontologies/${encodeURIComponent(ONTOLOGY)}/objects/${encodeURIComponent(OBJECT_TYPE)}/${encodeURIComponent(primaryKey)}/attachments/${encodeURIComponent(ATTACH_PROP)}?filename=${encodeURIComponent(filename)}`;
+
+            console.log(`[attach-to-object] POST ${url}`);
+
+            const foundryRes = await fetch(url, {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/octet-stream",
+                },
+                body: req.body,
+            });
+
+            const responseText = await foundryRes.text();
+            console.log(`[attach-to-object] Foundry response ${foundryRes.status}: ${responseText}`);
+
+            if (!foundryRes.ok) {
+                return res.status(foundryRes.status).json({
+                    error: responseText,
+                    debug: { url, ontology: ONTOLOGY, objectType: OBJECT_TYPE, property: ATTACH_PROP }
+                });
+            }
+
+            // Parse response to get the new attachment RID
+            let attachmentRid = null;
+            try { attachmentRid = JSON.parse(responseText)?.rid; } catch (_) { }
+
+            res.json({ success: true, attachmentRid });
+        } catch (err) {
+            console.error("[attach-to-object]", err);
+            res.status(500).json({ error: err.message });
+        }
     }
-});
+);
 
 // ── Serve React static bundle ────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, "dist")));

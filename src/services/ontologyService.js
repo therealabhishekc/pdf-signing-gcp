@@ -1,51 +1,39 @@
 /**
- * Ontology service — calls the Express backend proxy at /api/attach-to-object.
- * The backend handles auth + Foundry PATCH server-to-server (no CORS).
+ * Ontology Service — POST signed PDF binary directly to the Files object's
+ * attachment property via the Express backend proxy.
+ *
+ * Server endpoint: POST /api/attach-to-object?primaryKey=...&filename=...
+ * Server then calls:
+ *   POST /api/v2/ontologies/{ont}/objects/{type}/{pk}/attachments/{property}
+ *   Content-Type: application/octet-stream
+ * This both uploads the file AND sets the attachment property in one call.
  */
 
 /**
- * Upload signed PDF and link it to a Files object's attachment property.
- * (Both steps handled inside server.js via /api/upload-pdf + /api/attach-to-object)
+ * Upload signed PDF and set it directly on Files[primaryKey].attachment.
  *
- * @param {string}                  objectPrimaryKey  Primary key of the Files object.
- * @param {Uint8Array|ArrayBuffer}  signedPdfBytes    Signed PDF bytes.
+ * @param {string}                  objectPrimaryKey
+ * @param {Uint8Array|ArrayBuffer}  signedPdfBytes
  * @param {string}                  filename
- * @returns {Promise<string>}  The new attachment RID.
+ * @returns {Promise<string|null>}  New attachment RID (if returned by Foundry)
  */
 export async function attachSignedPdfToFileObject(objectPrimaryKey, signedPdfBytes, filename = "signed_document.pdf") {
-    // Step 1: Upload the PDF → get attachment RID
-    const uploadRes = await fetch(`/api/upload-pdf?filename=${encodeURIComponent(filename)}`, {
+    const url = `/api/attach-to-object?primaryKey=${encodeURIComponent(objectPrimaryKey)}&filename=${encodeURIComponent(filename)}`;
+
+    const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/octet-stream" },
         body: new Blob([signedPdfBytes], { type: "application/pdf" }),
     });
-    if (!uploadRes.ok) throw new Error(`Upload failed (HTTP ${uploadRes.status})`);
-    const { rid: attachmentRid } = await uploadRes.json();
 
-    console.log(`📎 Uploaded → attachment RID: ${attachmentRid}`);
-
-    // Step 2: Link the RID to Files[pk].attachment
-    const patchRes = await fetch("/api/attach-to-object", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ objectPrimaryKey, attachmentRid }),
-    });
-    if (!patchRes.ok) {
-        const detail = await patchRes.json().catch(() => ({}));
-        throw new Error(`Failed to link attachment to object (HTTP ${patchRes.status}): ${JSON.stringify(detail)}`);
+    if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        throw new Error(
+            `Failed to attach PDF to object (HTTP ${res.status}): ${JSON.stringify(detail)}`
+        );
     }
 
-    console.log(`✅ Files[${objectPrimaryKey}].attachment → ${attachmentRid}`);
-    return attachmentRid;
-}
-
-/**
- * Get attachment metadata by RID (via backend proxy — calls Foundry v2 API).
- * @param {string} attachmentRid
- * @returns {Promise<{ rid, filename, sizeBytes, mediaType }>}
- */
-export async function getAttachment(attachmentRid) {
-    const res = await fetch(`/api/attachment-metadata?rid=${encodeURIComponent(attachmentRid)}`);
-    if (!res.ok) throw new Error(`Failed to get attachment (HTTP ${res.status})`);
-    return await res.json();
+    const data = await res.json();
+    console.log(`✅ Files[${objectPrimaryKey}].attachment updated`, data);
+    return data.attachmentRid ?? null;
 }

@@ -126,16 +126,18 @@ export default function App() {
                 setAppState("DONE");
             } else {
                 // ── Production flow ───────────────────────────────────────
-                const { uploadSignedPdf } = await import("./services/attachmentService.js");
-
                 let signedRid;
+
                 if (filesPrimaryKey) {
-                    // Upload + link to the Files object's attachment property
+                    // POST binary directly to object's attachment property
+                    // (uploads + sets in one call, returns RID)
                     const { attachSignedPdfToFileObject } = await import("./services/ontologyService.js");
                     signedRid = await attachSignedPdfToFileObject(filesPrimaryKey, modifiedBytes, "signed_document.pdf");
-                } else {
-                    // No object key provided — just upload and return the RID to Workshop
-                    console.warn("No fileObjectPrimaryKey received — uploading PDF without linking to ontology object.");
+                }
+
+                // If no primary key or no RID returned, do a standalone upload for Workshop
+                if (!signedRid) {
+                    const { uploadSignedPdf } = await import("./services/attachmentService.js");
                     signedRid = await uploadSignedPdf(modifiedBytes, "signed_document.pdf");
                 }
 
