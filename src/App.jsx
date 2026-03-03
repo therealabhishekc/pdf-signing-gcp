@@ -9,10 +9,44 @@ import { embedSignature } from "./services/pdfSigner.js";
 // ─── Dev Mode ───────────────────────────────────────────────────────────────
 const DEV_MODE = import.meta.env.VITE_DEV_MODE === "true";
 
+// ─── Workshop SDK (only loaded in production) ───────────────────────────────
+let useWorkshopContext, visitLoadingState, SIGNING_WIDGET_CONFIG;
+if (!DEV_MODE) {
+    ({ useWorkshopContext } = await import("@osdk/workshop-iframe-custom-widget"));
+    ({ visitLoadingState } = await import("@osdk/workshop-iframe-custom-widget"));
+    ({ SIGNING_WIDGET_CONFIG } = await import("./workshopConfig.js"));
+}
+
 // ─── App states ─────────────────────────────────────────────────────────────
 //   WAITING → LOADING → VIEWING ↔ SIGNING ↔ PLACING → SUBMITTING → DONE | ERROR
 
-export default function App() {
+// ─── Main export ────────────────────────────────────────────────────────────
+// In dev mode, render App directly.
+// In production, WorkshopApp wraps App with useWorkshopContext.
+export default DEV_MODE ? App : WorkshopApp;
+
+// ─── Workshop wrapper (production only) ─────────────────────────────────────
+function WorkshopApp() {
+    const workshopContext = useWorkshopContext(SIGNING_WIDGET_CONFIG);
+
+    return visitLoadingState(workshopContext, {
+        loading: () => (
+            <div className="app">
+                <StatusOverlay state="WAITING" error={null} onRetry={() => { }} />
+            </div>
+        ),
+        succeeded: (ctx) => <App workshopCtx={ctx} />,
+        reloading: (ctx) => <App workshopCtx={ctx} />,
+        failed: (errMsg) => (
+            <div className="app">
+                <StatusOverlay state="ERROR" error={`Workshop connection failed: ${errMsg}`} onRetry={() => window.location.reload()} />
+            </div>
+        ),
+    });
+}
+
+// ─── Core App component ─────────────────────────────────────────────────────
+function App({ workshopCtx }) {
     const [appState, setAppState] = useState(DEV_MODE ? "LOADING" : "WAITING");
     const [pdfData, setPdfData] = useState(null);           // ArrayBuffer
     const [totalPages, setTotalPages] = useState(0);
@@ -21,7 +55,6 @@ export default function App() {
     const [pendingSig, setPendingSig] = useState(null);      // { dataUrl }
     const [placedSigs, setPlacedSigs] = useState([]);        // [{ pageIndex, x, y, w, h, dataUrl }]
     const [error, setError] = useState(null);
-    const [filesPrimaryKey, setFilesPrimaryKey] = useState(null); // which Files object to update
     const pdfViewerRef = useRef(null);
 
     // ── Dev mode: load sample PDF ────────────────────────────────────────────
@@ -41,28 +74,33 @@ export default function App() {
         })();
     }, []);
 
-    // ── Production: listen for postMessage from Workshop ────────────────────
+    // ── Production: react to Workshop context changes ────────────────────────
+    // When Workshop provides a pdfAttachmentRid via the SDK, download the PDF.
     useEffect(() => {
-        if (DEV_MODE) return;
-        const handler = async (event) => {
-            // Workshop sends: { pdfAttachmentRid, fileObjectPrimaryKey }
-            const { pdfAttachmentRid, fileObjectPrimaryKey: fk } = event.data ?? {};
-            if (!pdfAttachmentRid) return;
-            setAppState("LOADING");
+        if (DEV_MODE || !workshopCtx) return;
+
+        const ridField = workshopCtx.pdfAttachmentRid?.fieldValue;
+        // The field value is wrapped in an async state: { status, value }
+        if (!ridField || ridField.status !== "LOADED" || !ridField.value) return;
+
+        const attachmentRid = ridField.value;
+
+        // Don't re-download if we already have this PDF
+        if (pdfData && appState !== "WAITING") return;
+
+        setAppState("LOADING");
+        (async () => {
             try {
                 const { downloadPdf } = await import("./services/attachmentService.js");
-                const buffer = await downloadPdf(pdfAttachmentRid);
+                const buffer = await downloadPdf(attachmentRid);
                 setPdfData(buffer);
-                setFilesPrimaryKey(fk ?? null);  // remember which Files object this PDF belongs to
                 setAppState("VIEWING");
             } catch (err) {
                 setError(err.message);
                 setAppState("ERROR");
             }
-        };
-        window.addEventListener("message", handler);
-        return () => window.removeEventListener("message", handler);
-    }, []);
+        })();
+    }, [workshopCtx?.pdfAttachmentRid?.fieldValue]);
 
     // ── Toolbar controls ─────────────────────────────────────────────────────
     const handlePrevPage = () => setCurrentPage((p) => Math.max(1, p - 1));
@@ -125,24 +163,24 @@ export default function App() {
                 setTimeout(() => URL.revokeObjectURL(url), 5000);
                 setAppState("DONE");
             } else {
-                // ── Production flow ───────────────────────────────────────
+                // ── Production flow (via Workshop SDK) ────────────────────
                 // 1. Upload signed PDF → get attachment RID
                 const { uploadSignedPdf } = await import("./services/attachmentService.js");
                 const signedRid = await uploadSignedPdf(modifiedBytes, "signed_document.pdf");
 
-                // 2. Notify Workshop with the signed RID + original object key
-                //    Workshop's Action handler updates Files.attachment via the ontology
-                window.parent.postMessage({
-                    signedAttachmentRid: signedRid,
-                    fileObjectPrimaryKey: filesPrimaryKey ?? null,
-                }, "*");
+                // 2. Write the signed RID back to Workshop via the SDK
+                workshopCtx.signedAttachmentRid.setLoadedValue(signedRid);
+
+                // 3. Fire the onSignComplete event → Workshop triggers bound Action
+                workshopCtx.onSignComplete.executeEvent();
+
                 setAppState("DONE");
             }
         } catch (err) {
             setError(err.message);
             setAppState("ERROR");
         }
-    }, [pdfData, placedSigs, filesPrimaryKey]);
+    }, [pdfData, placedSigs, workshopCtx]);
 
     const handleRetry = () => {
         setError(null);
