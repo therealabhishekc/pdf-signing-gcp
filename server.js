@@ -136,22 +136,31 @@ app.post("/api/attach-to-object", async (req, res) => {
 
     try {
         const token = await getToken();
-        const url = `${STACK}/api/v2/ontologies/${encodeURIComponent(ONTOLOGY)}/objects/${encodeURIComponent(OBJECT_TYPE)}/${encodeURIComponent(objectPrimaryKey)}`;
+
+        // Try the Foundry v2 attachment property endpoint:
+        // PUT /api/v2/ontologies/{ontology}/objects/{type}/{pk}/attachments/{property}
+        // with body: { rid: "ri.attachments.main.attachment.xxx" }
+        const url = `${STACK}/api/v2/ontologies/${encodeURIComponent(ONTOLOGY)}/objects/${encodeURIComponent(OBJECT_TYPE)}/${encodeURIComponent(objectPrimaryKey)}/attachments/${encodeURIComponent(ATTACH_PROP)}`;
+
+        console.log(`[attach-to-object] PUT ${url}`);
 
         const foundryRes = await fetch(url, {
-            method: "PATCH",
+            method: "PUT",
             headers: {
                 Authorization: `Bearer ${token}`,
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify({
-                properties: { [ATTACH_PROP]: { rid: attachmentRid } },
-            }),
+            body: JSON.stringify({ rid: attachmentRid }),
         });
 
+        const responseText = await foundryRes.text();
+        console.log(`[attach-to-object] Foundry response ${foundryRes.status}: ${responseText}`);
+
         if (!foundryRes.ok) {
-            const detail = await foundryRes.text().catch(() => "");
-            return res.status(foundryRes.status).json({ error: detail });
+            return res.status(foundryRes.status).json({
+                error: responseText,
+                debug: { url, ontology: ONTOLOGY, objectType: OBJECT_TYPE, property: ATTACH_PROP }
+            });
         }
 
         res.json({ success: true, attachmentRid });
