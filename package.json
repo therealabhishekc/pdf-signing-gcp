@@ -7,13 +7,15 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "node server.js"
   },
   "dependencies": {
     "@osdk/client": "^2.7.3",
     "@osdk/foundry": "^2.51.0",
     "@osdk/oauth": "^1.7.0",
     "@osdk/workshop-iframe-custom-widget": "^1.1.1",
+    "express": "^5.2.1",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.4.168",
     "react": "^18.3.1",
