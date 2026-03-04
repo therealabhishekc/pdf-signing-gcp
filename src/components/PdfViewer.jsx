@@ -9,15 +9,13 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 
 /**
  * PdfViewer — renders a single PDF page onto a canvas using PDF.js.
- * Also renders an overlay canvas on top for signature placement hints.
+ * Also renders an overlay container on top for interactive DOM signatures.
  *
  * Props:
  *   pdfData: ArrayBuffer  — the raw PDF bytes
  *   currentPage: number
  *   zoom: number
  *   onPageLoaded: (totalPages) => void
- *   pendingSignature: { dataUrl, width, height } | null — signature waiting to be placed
- *   placedSignatures: [{ pageIndex, x, y, width, height, dataUrl }]
  *   overlayContent: ReactNode | null — rendered inside .pdf-viewer, same coordinate space as canvas
  */
 export default function PdfViewer({
@@ -25,13 +23,12 @@ export default function PdfViewer({
     currentPage,
     zoom,
     onPageLoaded,
-    placedSignatures = [],
-    overlayContent = null,   // ← rendered inside .pdf-viewer, same coordinate space as canvas
+    overlayContent = null,
 }) {
     const canvasRef = useRef(null);
     const pdfDocRef = useRef(null);
     const [loading, setLoading] = useState(false);
-    const [pdfReady, setPdfReady] = useState(false); // flips true once PDF.js finishes loading
+    const [pdfReady, setPdfReady] = useState(false);
     const renderTaskRef = useRef(null);
 
     // Load PDF document from ArrayBuffer
@@ -40,15 +37,12 @@ export default function PdfViewer({
 
         const loadPdf = async () => {
             try {
-                // PDF.js transfers (detaches) the ArrayBuffer to the worker thread.
-                // We must pass a COPY via .slice() so the original pdfData stays intact
-                // for pdf-lib embedding later.
                 const copy = pdfData.slice(0);
                 const typedArray = new Uint8Array(copy);
                 const loadingTask = pdfjsLib.getDocument({ data: typedArray });
                 const pdf = await loadingTask.promise;
                 pdfDocRef.current = pdf;
-                setPdfReady(true);  // triggers renderPage to re-run now that the doc is ready
+                setPdfReady(true);
                 onPageLoaded?.(pdf.numPages);
             } catch (err) {
                 console.error("Failed to load PDF:", err);
@@ -64,7 +58,6 @@ export default function PdfViewer({
         const canvas = canvasRef.current;
         if (!pdf || !canvas) return;
 
-        // Cancel any ongoing render
         if (renderTaskRef.current) {
             try { renderTaskRef.current.cancel(); } catch { }
         }
@@ -81,16 +74,6 @@ export default function PdfViewer({
             const renderTask = page.render({ canvasContext: ctx, viewport });
             renderTaskRef.current = renderTask;
             await renderTask.promise;
-
-            // Draw placed signatures on top
-            // Stored coords are in PDF points; multiply by zoom → canvas pixels
-            for (const sig of placedSignatures) {
-                if (sig.pageIndex !== currentPage - 1) continue;
-                const img = new Image();
-                img.src = sig.dataUrl;
-                await new Promise((res) => { img.onload = res; });
-                ctx.drawImage(img, sig.x * zoom, sig.y * zoom, sig.width * zoom, sig.height * zoom);
-            }
         } catch (err) {
             if (err?.name !== "RenderingCancelledException") {
                 console.error("PDF render error:", err);
@@ -98,7 +81,7 @@ export default function PdfViewer({
         } finally {
             setLoading(false);
         }
-    }, [currentPage, zoom, placedSignatures, pdfReady]);
+    }, [currentPage, zoom, pdfReady]);
 
     useEffect(() => {
         renderPage();

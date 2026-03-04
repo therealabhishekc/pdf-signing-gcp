@@ -12,7 +12,6 @@ export default function Toolbar({
     onZoomIn,
     onZoomOut,
     onAddSignature,
-    onUndoSignature,
     onSubmit,
     canSubmit,
     isPlacing,
@@ -65,14 +64,9 @@ export default function Toolbar({
                     )
                 )}
                 {canSubmit && !isSigned && (
-                    <>
-                        <button className="btn btn-secondary" onClick={onUndoSignature} title="Undo last signature" style={{ marginRight: "8px" }}>
-                            ↩️ Undo
-                        </button>
-                        <button className="btn btn-primary" onClick={onSubmit} title="Submit signed document">
-                            📤 Submit
-                        </button>
-                    </>
+                    <button className="btn btn-primary" onClick={onSubmit} title="Submit signed document">
+                        📤 Submit
+                    </button>
                 )}
             </div>
         </div>

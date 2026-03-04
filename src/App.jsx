@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from "react";
 import { version } from "../package.json";
 import PdfViewer from "./components/PdfViewer.jsx";
 import SignatureModal from "./components/SignatureModal.jsx";
-import SignaturePlacer from "./components/SignaturePlacer.jsx";
+import DraggableSignature from "./components/DraggableSignature.jsx";
 import StatusOverlay from "./components/StatusOverlay.jsx";
 import Toolbar from "./components/Toolbar.jsx";
 import { embedSignature } from "./services/pdfSigner.js";
@@ -12,7 +12,7 @@ import { useWorkshopContext, visitLoadingState } from "@osdk/workshop-iframe-cus
 import { SIGNING_WIDGET_CONFIG } from "./workshopConfig.js";
 
 // ─── App states ─────────────────────────────────────────────────────────────
-//   WAITING → LOADING → VIEWING ↔ SIGNING ↔ PLACING → SUBMITTING → DONE | ERROR
+//   WAITING → LOADING → VIEWING ↔ SIGNING → SUBMITTING → DONE | ERROR
 
 // ─── Main export ────────────────────────────────────────────────────────────
 export default function WorkshopApp() {
@@ -42,7 +42,7 @@ function App({ workshopCtx }) {
     const [currentPage, setCurrentPage] = useState(1);
     const [zoom, setZoom] = useState(1.0);
     const [pendingSig, setPendingSig] = useState(null);      // { dataUrl }
-    const [placedSigs, setPlacedSigs] = useState([]);        // [{ pageIndex, x, y, w, h, dataUrl }]
+    const [placedSigs, setPlacedSigs] = useState([]);        // [{ id, pageIndex, x, y, width, height, dataUrl }]
     const [error, setError] = useState(null);
     const pdfViewerRef = useRef(null);
     const lastLoadedRid = useRef(null);                      // track which RID is currently displayed
@@ -106,35 +106,42 @@ function App({ workshopCtx }) {
     const handleAddSignature = () => setAppState("SIGNING");
 
     const handleSignatureConfirm = (dataUrl) => {
-        setPendingSig({ dataUrl });
-        setAppState("PLACING");
-    };
-
-    const handleSignaturePlaced = useCallback(({ x, y, width, height }) => {
-        // Divide by zoom to convert canvas pixels → PDF points
+        // Immediately place the signature at a default position
         setPlacedSigs((prev) => [
             ...prev,
             {
+                id: Date.now().toString(),
                 pageIndex: currentPage - 1,
-                x: x / zoom,
-                y: y / zoom,
-                width: width / zoom,
-                height: height / zoom,
-                dataUrl: pendingSig.dataUrl,
+                x: 50, // default PDF points
+                y: 50,
+                width: 200,
+                height: 60,
+                dataUrl,
             },
         ]);
-        setPendingSig(null);
-        setAppState("VIEWING");
-    }, [currentPage, pendingSig, zoom]);
-
-    const handleCancelPlace = () => {
-        setPendingSig(null);
         setAppState("VIEWING");
     };
 
-    const handleUndoSignature = () => {
-        setPlacedSigs((prev) => prev.slice(0, -1));
-    };
+    const handleUpdateSignature = useCallback((id, newCoords) => {
+        setPlacedSigs((prev) => prev.map((sig) =>
+            sig.id === id ? { ...sig, ...newCoords } : sig
+        ));
+    }, []);
+
+    const handleRemoveSignature = useCallback((id) => {
+        setPlacedSigs((prev) => prev.filter((sig) => sig.id !== id));
+    }, []);
+
+    const handleCopySignature = useCallback((id) => {
+        setPlacedSigs((prev) => {
+            const source = prev.find((sig) => sig.id === id);
+            if (!source) return prev;
+            return [
+                ...prev,
+                { ...source, id: Date.now().toString(), x: source.x + 20, y: source.y + 20 },
+            ];
+        });
+    }, []);
 
     // ── Submit (embed + upload to MongoDB) ─────────────────────────────────
     const handleSubmit = useCallback(async () => {
@@ -180,7 +187,7 @@ function App({ workshopCtx }) {
         setAppState("VIEWING");
     };
 
-    const isViewing = appState === "VIEWING" || appState === "SIGNING" || appState === "PLACING";
+    const isViewing = appState === "VIEWING" || appState === "SIGNING";
 
     return (
         <div className="app">
@@ -199,10 +206,9 @@ function App({ workshopCtx }) {
                         onZoomIn={handleZoomIn}
                         onZoomOut={handleZoomOut}
                         onAddSignature={handleAddSignature}
-                        onUndoSignature={handleUndoSignature}
                         onSubmit={handleSubmit}
                         canSubmit={placedSigs.length > 0}
-                        isPlacing={appState === "PLACING"}
+                        isPlacing={false}
                         isSigned={isSigned}
                     />
 
@@ -212,16 +218,26 @@ function App({ workshopCtx }) {
                             currentPage={currentPage}
                             zoom={zoom}
                             onPageLoaded={setTotalPages}
-                            placedSignatures={placedSigs}
                             overlayContent={
-                                appState === "PLACING" && pendingSig ? (
-                                    <SignaturePlacer
-                                        signatureDataUrl={pendingSig.dataUrl}
-                                        zoom={zoom}
-                                        onPlace={handleSignaturePlaced}
-                                        onCancel={handleCancelPlace}
-                                    />
-                                ) : null
+                                <>
+                                    {placedSigs
+                                        .filter((sig) => sig.pageIndex === currentPage - 1)
+                                        .map((sig) => (
+                                            <DraggableSignature
+                                                key={sig.id}
+                                                id={sig.id}
+                                                dataUrl={sig.dataUrl}
+                                                initialX={sig.x}
+                                                initialY={sig.y}
+                                                initialWidth={sig.width}
+                                                initialHeight={sig.height}
+                                                zoom={zoom}
+                                                onUpdate={handleUpdateSignature}
+                                                onRemove={handleRemoveSignature}
+                                                onCopy={handleCopySignature}
+                                            />
+                                        ))}
+                                </>
                             }
                         />
 
