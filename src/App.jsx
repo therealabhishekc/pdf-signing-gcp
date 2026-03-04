@@ -6,11 +6,7 @@ import StatusOverlay from "./components/StatusOverlay.jsx";
 import Toolbar from "./components/Toolbar.jsx";
 import { embedSignature } from "./services/pdfSigner.js";
 
-// ─── Dev Mode ───────────────────────────────────────────────────────────────
-const DEV_MODE = import.meta.env.VITE_DEV_MODE === "true";
-
 // ─── Workshop SDK ───────────────────────────────────────────────────────────
-// These are only used in production (WorkshopApp). Vite tree-shakes them in dev.
 import { useWorkshopContext, visitLoadingState } from "@osdk/workshop-iframe-custom-widget";
 import { SIGNING_WIDGET_CONFIG } from "./workshopConfig.js";
 
@@ -18,12 +14,7 @@ import { SIGNING_WIDGET_CONFIG } from "./workshopConfig.js";
 //   WAITING → LOADING → VIEWING ↔ SIGNING ↔ PLACING → SUBMITTING → DONE | ERROR
 
 // ─── Main export ────────────────────────────────────────────────────────────
-// In dev mode, render App directly.
-// In production, WorkshopApp wraps App with useWorkshopContext.
-export default DEV_MODE ? App : WorkshopApp;
-
-// ─── Workshop wrapper (production only) ─────────────────────────────────────
-function WorkshopApp() {
+export default function WorkshopApp() {
     const workshopContext = useWorkshopContext(SIGNING_WIDGET_CONFIG);
 
     return visitLoadingState(workshopContext, {
@@ -44,7 +35,7 @@ function WorkshopApp() {
 
 // ─── Core App component ─────────────────────────────────────────────────────
 function App({ workshopCtx }) {
-    const [appState, setAppState] = useState(DEV_MODE ? "LOADING" : "WAITING");
+    const [appState, setAppState] = useState("WAITING");
     const [pdfData, setPdfData] = useState(null);           // ArrayBuffer
     const [totalPages, setTotalPages] = useState(0);
     const [currentPage, setCurrentPage] = useState(1);
@@ -57,32 +48,15 @@ function App({ workshopCtx }) {
 
     // isSigned is only true when Workshop explicitly sends boolean true.
     // null, undefined, false, or unloaded state → false → Sign button shown.
-    const isSigned = !DEV_MODE &&
+    const isSigned =
         workshopCtx?.isSigned?.fieldValue?.status === "LOADED" &&
         workshopCtx?.isSigned?.fieldValue?.value === true;
 
-    // ── Dev mode: load sample PDF ────────────────────────────────────────────
-    useEffect(() => {
-        if (!DEV_MODE) return;
-        (async () => {
-            try {
-                const res = await fetch("/sample.pdf");
-                if (!res.ok) throw new Error("Could not load /sample.pdf");
-                const buffer = await res.arrayBuffer();
-                setPdfData(buffer);
-                setAppState("VIEWING");
-            } catch (err) {
-                setError(err.message);
-                setAppState("ERROR");
-            }
-        })();
-    }, []);
-
-    // ── Production: react to Workshop context changes ────────────────────────
+    // ── React to Workshop context changes ────────────────────────────────────
     // Re-downloads the PDF whenever pdfAttachmentRid changes (e.g. user selects
     // a different Files object in Workshop → variable updates → new PDF loads).
     useEffect(() => {
-        if (DEV_MODE || !workshopCtx) return;
+        if (!workshopCtx) return;
 
         const ridField = workshopCtx.pdfAttachmentRid?.fieldValue;
         // The field value is wrapped in an async state: { status, value }
@@ -157,7 +131,7 @@ function App({ workshopCtx }) {
         setAppState("VIEWING");
     };
 
-    // ── Submit (embed + download / upload) ─────────────────────────────────
+    // ── Submit (embed + upload to MongoDB) ─────────────────────────────────
     const handleSubmit = useCallback(async () => {
         if (!pdfData || placedSigs.length === 0) return;
         setAppState("SUBMITTING");
@@ -171,44 +145,31 @@ function App({ workshopCtx }) {
                 );
             }
 
-            if (DEV_MODE) {
-                // ── Dev mode: download locally ────────────────────────────
-                const blob = new Blob([modifiedBytes], { type: "application/pdf" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = "signed_document.pdf";
-                a.click();
-                setTimeout(() => URL.revokeObjectURL(url), 5000);
-                setAppState("DONE");
-            } else {
-                // ── Production flow (via Workshop SDK) ────────────────────
-                // 1. Upload signed PDF → MongoDB → get unique ID
-                const { uploadSignedPdf } = await import("./services/attachmentService.js");
-                const signedPdfId = await uploadSignedPdf(modifiedBytes, "signed_document.pdf");
+            // Upload signed PDF → MongoDB → get unique ID
+            const { uploadSignedPdf } = await import("./services/attachmentService.js");
+            const signedPdfId = await uploadSignedPdf(modifiedBytes, "signed_document.pdf");
 
-                // 2. Write the signed PDF ID back to Workshop via the SDK
-                workshopCtx.signedPdfId.setLoadedValue(signedPdfId);
+            // Write the signed PDF ID back to Workshop via the SDK
+            workshopCtx.signedPdfId.setLoadedValue(signedPdfId);
 
-                // 3. Fire the onSignComplete event → Workshop triggers bound Action
-                workshopCtx.onSignComplete.executeEvent();
+            // Fire the onSignComplete event → Workshop triggers bound Action
+            workshopCtx.onSignComplete.executeEvent();
 
-                setAppState("DONE");
-            }
+            setAppState("DONE");
         } catch (err) {
             setError(err.message);
             setAppState("ERROR");
         }
-    }, [pdfData, placedSigs, workshopCtx]); // filesPrimaryKey removed — no longer needed
+    }, [pdfData, placedSigs, workshopCtx]);
 
     const handleRetry = () => {
         setError(null);
         setPlacedSigs([]);
         setPendingSig(null);
-        setAppState(DEV_MODE ? "LOADING" : "WAITING");
+        setAppState("WAITING");
     };
 
-    // Close the DONE overlay and go back to VIEWING (PDF will show the updated RID from Action)
+    // Close the DONE overlay and go back to VIEWING
     const handleDoneClose = () => {
         setPlacedSigs([]);
         setAppState("VIEWING");
