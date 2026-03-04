@@ -52,7 +52,6 @@ function App({ workshopCtx }) {
     const [pendingSig, setPendingSig] = useState(null);      // { dataUrl }
     const [placedSigs, setPlacedSigs] = useState([]);        // [{ pageIndex, x, y, w, h, dataUrl }]
     const [error, setError] = useState(null);
-    const [signedRid, setSignedRid] = useState(null);        // RID of uploaded signed PDF
     const pdfViewerRef = useRef(null);
     const lastLoadedRid = useRef(null);                      // track which RID is currently displayed
 
@@ -184,17 +183,16 @@ function App({ workshopCtx }) {
                 setAppState("DONE");
             } else {
                 // ── Production flow (via Workshop SDK) ────────────────────
-                // 1. Upload signed PDF → get attachment RID
+                // 1. Upload signed PDF → MongoDB → get unique ID
                 const { uploadSignedPdf } = await import("./services/attachmentService.js");
-                const signedRid = await uploadSignedPdf(modifiedBytes, "signed_document.pdf");
+                const signedPdfId = await uploadSignedPdf(modifiedBytes, "signed_document.pdf");
 
-                // 2. Write the signed RID back to Workshop via the SDK
-                workshopCtx.signedAttachmentRid.setLoadedValue(signedRid);
+                // 2. Write the signed PDF ID back to Workshop via the SDK
+                workshopCtx.signedPdfId.setLoadedValue(signedPdfId);
 
                 // 3. Fire the onSignComplete event → Workshop triggers bound Action
                 workshopCtx.onSignComplete.executeEvent();
 
-                setSignedRid(signedRid);
                 setAppState("DONE");
             }
         } catch (err) {

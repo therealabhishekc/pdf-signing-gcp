@@ -15,10 +15,10 @@ export async function downloadPdf(attachmentRid) {
 }
 
 /**
- * Upload the signed PDF via the backend proxy.
+ * Upload the signed PDF to the server (stored in MongoDB).
  * @param {Uint8Array | ArrayBuffer} pdfBytes
  * @param {string} filename
- * @returns {Promise<string>} attachment RID
+ * @returns {Promise<string>} unique ID for retrieval
  */
 export async function uploadSignedPdf(pdfBytes, filename = "signed_document.pdf") {
     const res = await fetch(`/api/upload-pdf?filename=${encodeURIComponent(filename)}`, {
@@ -28,5 +28,5 @@ export async function uploadSignedPdf(pdfBytes, filename = "signed_document.pdf"
     });
     if (!res.ok) throw new Error(`Failed to upload PDF (HTTP ${res.status})`);
     const data = await res.json();
-    return data.rid;
+    return data.id;
 }

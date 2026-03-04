@@ -16,6 +16,7 @@
     "@osdk/oauth": "^1.7.0",
     "@osdk/workshop-iframe-custom-widget": "^1.1.1",
     "express": "^5.2.1",
+    "mongodb": "^7.1.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.4.168",
     "react": "^18.3.1",

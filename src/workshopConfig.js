@@ -41,10 +41,10 @@ export const SIGNING_WIDGET_CONFIG = [
         },
     },
     {
-        fieldId: "signedAttachmentRid",
+        fieldId: "signedPdfId",
         field: {
             type: "single",
-            label: "Signed PDF Attachment RID",
+            label: "Signed PDF ID",
             fieldValue: {
                 type: "inputOutput",
                 variableType: {

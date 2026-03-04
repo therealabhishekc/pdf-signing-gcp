@@ -1,25 +1,18 @@
 /**
  * Express backend proxy for the PDF Signing App.
  *
- * Why this exists:
- *   Browsers block direct cross-origin fetch() calls to Foundry (CORS policy).
- *   This server sits between the browser and Foundry:
- *     Browser → /api/* (same-origin, no CORS) → Express → Foundry API
- *
- * Also keeps the client_secret out of the browser entirely.
- *
  * Endpoints:
- *   GET  /api/download-pdf?rid=...          → streams PDF bytes from Foundry
- *   POST /api/upload-pdf?filename=...       → uploads PDF to Foundry, returns { rid }
- *   POST /api/attach-to-object              → links attachment RID to Files object property
+ *   GET  /api/download-pdf?rid=...              → streams PDF from Foundry
+ *   POST /api/upload-pdf?filename=...           → stores signed PDF in MongoDB, returns { id }
+ *   GET  /api/download-signed-pdf/:id           → Foundry calls this to retrieve the signed PDF
  *
  * Static files: serves dist/ for the React app
  */
 
 import express from "express";
-import { createRequire } from "module";
 import { fileURLToPath } from "url";
 import path from "path";
+import { connectDb, storePdf, getPdf } from "./db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -28,9 +21,6 @@ const app = express();
 const STACK = process.env.VITE_FOUNDRY_STACK ?? "";
 const CLIENT_ID = process.env.VITE_CLIENT_ID ?? "";
 const CLIENT_SECRET = process.env.VITE_CLIENT_SECRET ?? "";
-const ONTOLOGY = process.env.VITE_ONTOLOGY_API_NAME ?? "ontology";
-const OBJECT_TYPE = process.env.VITE_OBJECT_TYPE ?? "Files";
-const ATTACH_PROP = process.env.VITE_DOCS_PROPERTY ?? "attachment";
 
 // ── Token cache ───────────────────────────────────────────────────────────────
 let _cachedToken = null;
@@ -80,7 +70,6 @@ app.get("/api/download-pdf", async (req, res) => {
             return res.status(foundryRes.status).json({ error: "Foundry download failed" });
         }
         res.setHeader("Content-Type", "application/pdf");
-        // Stream the response body through
         const arrayBuffer = await foundryRes.arrayBuffer();
         res.send(Buffer.from(arrayBuffer));
     } catch (err) {
@@ -91,9 +80,9 @@ app.get("/api/download-pdf", async (req, res) => {
 
 /**
  * POST /api/upload-pdf?filename=signed_document.pdf
- * Uploads a signed PDF to Foundry's attachment store.
+ * Stores the signed PDF in MongoDB and returns a unique ID.
  * Body: raw binary (application/octet-stream)
- * Response: { rid, filename, sizeBytes, mediaType }
+ * Response: { id }
  */
 app.post(
     "/api/upload-pdf",
@@ -101,21 +90,8 @@ app.post(
     async (req, res) => {
         const { filename = "signed_document.pdf" } = req.query;
         try {
-            const token = await getToken();
-            const foundryRes = await fetch(
-                `${STACK}/api/v2/ontologies/attachments/upload?filename=${encodeURIComponent(filename)}`,
-                {
-                    method: "POST",
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        "Content-Type": "application/octet-stream",
-                    },
-                    body: req.body,
-                }
-            );
-            const data = await foundryRes.json();
-            if (!foundryRes.ok) return res.status(foundryRes.status).json(data);
-            res.json(data); // { rid, filename, sizeBytes, mediaType }
+            const id = await storePdf(req.body, filename);
+            res.json({ id });
         } catch (err) {
             console.error("[upload-pdf]", err);
             res.status(500).json({ error: err.message });
@@ -123,8 +99,24 @@ app.post(
     }
 );
 
+/**
+ * GET /api/download-signed-pdf/:id
+ * Public endpoint — Foundry calls this to download the signed PDF.
+ * Returns raw PDF bytes, or 404 if not found / expired.
+ */
+app.get("/api/download-signed-pdf/:id", async (req, res) => {
+    try {
+        const result = await getPdf(req.params.id);
+        if (!result) return res.status(404).json({ error: "PDF not found or expired" });
 
-
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
+        res.send(Buffer.from(result.pdfData));
+    } catch (err) {
+        console.error("[download-signed-pdf]", err);
+        res.status(500).json({ error: err.message });
+    }
+});
 
 // ── Serve React static bundle ────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, "dist")));
@@ -132,6 +124,10 @@ app.get(/.*/, (_req, res) => {
     res.sendFile(path.join(__dirname, "dist", "index.html"));
 });
 
-// ── Start ────────────────────────────────────────────────────────────────────
+// ── Start (connect to MongoDB first, then listen) ────────────────────────────
 const PORT = process.env.PORT ?? 3000;
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+
+(async () => {
+    await connectDb();
+    app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+})();
