@@ -572,72 +572,94 @@ body {
 /* ── Draggable Signature ───────────────────────────────────────── */
 .draggable-sig {
   box-sizing: border-box;
-  border-radius: var(--radius-sm);
-  transition: box-shadow 0.15s, opacity 0.15s;
+  transition: opacity 0.15s;
   user-select: none;
   touch-action: none;
+  border: 1.5px solid transparent;
 }
 
 .draggable-sig--active {
-  box-shadow: 0 0 0 2px var(--accent-glow), 0 4px 12px rgba(0, 0, 0, 0.2);
-  background: rgba(139, 92, 246, 0.05);
-  /* very faint accent bg for visibility */
+  border-color: #2b70cd;
+  /* Solid blue bounding box */
+  background: transparent;
 }
 
 .draggable-sig-toolbar {
   position: absolute;
-  top: -36px;
-  right: -2px;
+  top: -30px;
+  /* sit right on the top edge */
+  right: -1px;
+  /* align with right edge */
   display: flex;
   gap: 4px;
-  background: var(--bg-surface-light);
-  padding: 4px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-strong);
-  box-shadow: var(--shadow-sm);
+  background: transparent;
+  padding: 0;
+  border: none;
+  box-shadow: none;
   z-index: 20;
 }
 
 .sig-action-btn {
   display: flex;
   align-items: center;
-  gap: 4px;
-  background: transparent;
-  color: var(--text-primary);
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: #4775a7;
+  /* faded blue background */
+  color: #ffffff;
   border: none;
-  padding: 4px 8px;
-  font-size: 11px;
-  font-weight: 500;
-  border-radius: var(--radius-sm);
+  border-radius: 4px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: filter 0.15s;
 }
 
 .sig-action-btn:hover {
-  background: var(--bg-surface);
-}
-
-.sig-action-btn--danger {
-  color: #fca5a5;
+  filter: brightness(1.15);
+  background: #4775a7;
+  /* override glassmorphism hover */
 }
 
 .sig-action-btn--danger:hover {
-  background: rgba(239, 68, 68, 0.15);
-  color: #f87171;
+  background: #4775a7;
+  /* Override glassmorphism danger hover */
+  color: #ffffff;
 }
 
 .sig-resize-handle {
   position: absolute;
-  bottom: -6px;
-  right: -6px;
-  width: 14px;
-  height: 14px;
-  background: var(--accent);
-  border: 2px solid var(--bg-surface);
+  width: 8px;
+  height: 8px;
+  background: #ffffff;
+  border: 1.5px solid #2b70cd;
   border-radius: 50%;
-  cursor: se-resize;
   z-index: 10;
-  box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+  box-shadow: none;
+}
+
+/* 4 Corners */
+.sig-resize-tl {
+  top: -5.5px;
+  left: -5.5px;
+  cursor: nwse-resize;
+}
+
+.sig-resize-tr {
+  top: -5.5px;
+  right: -5.5px;
+  cursor: nesw-resize;
+}
+
+.sig-resize-bl {
+  bottom: -5.5px;
+  left: -5.5px;
+  cursor: nesw-resize;
+}
+
+.sig-resize-br {
+  bottom: -5.5px;
+  right: -5.5px;
+  cursor: nwse-resize;
 }
 
 /* ── Signed badge (Toolbar) ────────────────────────────────────────────────── */
