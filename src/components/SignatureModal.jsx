@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import SignaturePad from "signature_pad";
-import { Pen, Keyboard, X } from "lucide-react";
+import { PenTool, Keyboard, X } from "lucide-react";
 
 const HANDWRITING_FONTS = [
     { name: "Dancing Script", css: "'Dancing Script', cursive" },
@@ -108,7 +108,7 @@ export default function SignatureModal({ onConfirm, onClose }) {
                         className={`tab-btn ${activeTab === "draw" ? "tab-btn--active" : ""}`}
                         onClick={() => setActiveTab("draw")}
                     >
-                        <Pen size={16} /> Draw
+                        <PenTool size={16} /> Draw
                     </button>
                     <button
                         className={`tab-btn ${activeTab === "type" ? "tab-btn--active" : ""}`}

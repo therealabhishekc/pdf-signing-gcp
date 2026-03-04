@@ -1,5 +1,5 @@
 import React from "react";
-import { CheckCircle2, PenLine, Send, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
+import { CheckCircle2, Signature, Send, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
 
 /**
  * Top toolbar: page navigation, zoom, and action buttons.
@@ -60,7 +60,7 @@ export default function Toolbar({
                 ) : (
                     !isPlacing && (
                         <button className="btn btn-secondary" onClick={onAddSignature} title="Open signature pad">
-                            <PenLine size={16} /> Sign
+                            <Signature size={16} /> Sign
                         </button>
                     )
                 )}

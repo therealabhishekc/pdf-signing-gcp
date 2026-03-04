@@ -1,5 +1,5 @@
 import React from "react";
-import { FileText, Loader2, UploadCloud, CheckCircle2, AlertTriangle, X } from "lucide-react";
+import { FileText, Loader2, UploadCloud, CheckCircle2, FileXCorner, AlertTriangle, X } from "lucide-react";
 
 /**
  * Fullscreen overlay for loading, success, and error states.
@@ -11,7 +11,7 @@ export default function StatusOverlay({ state, error, onRetry, onClose }) {
 
     const stateConfig = {
         WAITING: {
-            icon: <FileText size={48} className="status-icon-svg" />,
+            icon: <FileXCorner size={48} className="status-icon-svg" />,
             title: "No Document To Display",
             description: "No PDF has been assigned to this widget yet.",
             showSpinner: false,
