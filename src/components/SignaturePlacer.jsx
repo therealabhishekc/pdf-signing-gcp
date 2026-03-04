@@ -73,7 +73,7 @@ export default function SignaturePlacer({ signatureDataUrl, zoom = 1, onPlace, o
                 <img
                     src={signatureDataUrl}
                     draggable={false}
-                    style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                    style={{ width: "100%", height: "100%", display: "block" }}
                     alt="Signature preview"
                 />
                 {/* Resize handle (bottom-right corner) */}
@@ -83,15 +83,15 @@ export default function SignaturePlacer({ signatureDataUrl, zoom = 1, onPlace, o
                         e.stopPropagation();
                         const startW = pos.width;
                         const startH = pos.height;
+                        const ratio = startH / startW;
                         const startX = e.clientX;
-                        const startY = e.clientY;
                         const onMove = (me) => {
                             const dw = me.clientX - startX;
-                            const dh = me.clientY - startY;
+                            const newW = Math.max(80, startW + dw);
                             setPos((p) => ({
                                 ...p,
-                                width: Math.max(80, startW + dw),
-                                height: Math.max(30, startH + dh),
+                                width: newW,
+                                height: newW * ratio,
                             }));
                         };
                         const onEnd = () => {
