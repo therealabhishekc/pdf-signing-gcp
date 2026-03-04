@@ -132,6 +132,10 @@ function App({ workshopCtx }) {
         setAppState("VIEWING");
     };
 
+    const handleUndoSignature = () => {
+        setPlacedSigs((prev) => prev.slice(0, -1));
+    };
+
     // ── Submit (embed + upload to MongoDB) ─────────────────────────────────
     const handleSubmit = useCallback(async () => {
         if (!pdfData || placedSigs.length === 0) return;
@@ -195,6 +199,7 @@ function App({ workshopCtx }) {
                         onZoomIn={handleZoomIn}
                         onZoomOut={handleZoomOut}
                         onAddSignature={handleAddSignature}
+                        onUndoSignature={handleUndoSignature}
                         onSubmit={handleSubmit}
                         canSubmit={placedSigs.length > 0}
                         isPlacing={appState === "PLACING"}
