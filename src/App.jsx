@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
+import { version } from "../package.json";
 import PdfViewer from "./components/PdfViewer.jsx";
 import SignatureModal from "./components/SignatureModal.jsx";
 import SignaturePlacer from "./components/SignaturePlacer.jsx";
@@ -236,6 +237,9 @@ function App({ workshopCtx }) {
                     onClose={() => setAppState("VIEWING")}
                 />
             )}
+
+            {/* Version badge */}
+            <div className="version-badge">v{version}</div>
         </div>
     );
 }
