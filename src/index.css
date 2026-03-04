@@ -666,8 +666,8 @@ body {
 
 .status-close-btn {
   position: absolute;
-  top: -4px;
-  right: -4px;
+  top: 12px;
+  right: 12px;
   width: 28px;
   height: 28px;
   border-radius: 50%;
@@ -686,6 +686,7 @@ body {
   background: rgba(255, 255, 255, 0.18);
   color: #fff;
 }
+
 /* ── Version badge ─────────────────────────────────────────────────────────── */
 .version-badge {
   position: fixed;
