@@ -1,4 +1,5 @@
 import React from "react";
+import { FileText, Loader2, UploadCloud, CheckCircle2, AlertTriangle, X } from "lucide-react";
 
 /**
  * Fullscreen overlay for loading, success, and error states.
@@ -10,32 +11,32 @@ export default function StatusOverlay({ state, error, onRetry, onClose }) {
 
     const stateConfig = {
         WAITING: {
-            icon: "📄",
+            icon: <FileText size={48} className="status-icon-svg" />,
             title: "No Document To Display",
             description: "No PDF has been assigned to this widget yet.",
             showSpinner: false,
         },
         LOADING: {
-            icon: "📄",
+            icon: <FileText size={48} className="status-icon-svg text-blue-400" />,
             title: "Loading PDF",
             description: "Fetching document from Foundry…",
             showSpinner: true,
         },
         SUBMITTING: {
-            icon: "☁️",
+            icon: <UploadCloud size={48} className="status-icon-svg text-accent" />,
             title: "Uploading Signed Document",
             description: "Embedding signature and uploading to Foundry…",
             showSpinner: true,
         },
         DONE: {
-            icon: "✅",
+            icon: <CheckCircle2 size={56} className="status-icon-svg text-green-400" />,
             title: "Document Signed Successfully",
             description: "The signed document has been uploaded to Foundry.",
             showSpinner: false,
             success: true,
         },
         ERROR: {
-            icon: "⚠️",
+            icon: <AlertTriangle size={48} className="status-icon-svg text-red-400" />,
             title: "Something Went Wrong",
             description: error || "An unexpected error occurred.",
             showSpinner: false,

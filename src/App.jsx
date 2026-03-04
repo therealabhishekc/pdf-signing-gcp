@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { version } from "../package.json";
+import { Check } from "lucide-react";
 import PdfViewer from "./components/PdfViewer.jsx";
 import SignatureModal from "./components/SignatureModal.jsx";
 import DraggableSignature from "./components/DraggableSignature.jsx";
@@ -244,7 +245,7 @@ function App({ workshopCtx }) {
                         {/* Floating signature counter badge */}
                         {placedSigs.length > 0 && (
                             <div className="sig-count-badge">
-                                {placedSigs.length} signature{placedSigs.length > 1 ? "s" : ""}
+                                <Check size={14} /> {placedSigs.length} signature{placedSigs.length > 1 ? "s" : ""}
                             </div>
                         )}
                     </div>

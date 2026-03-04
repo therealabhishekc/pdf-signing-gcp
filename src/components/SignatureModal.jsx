@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import SignaturePad from "signature_pad";
+import { Pen, Keyboard, X } from "lucide-react";
 
 const HANDWRITING_FONTS = [
     { name: "Dancing Script", css: "'Dancing Script', cursive" },
@@ -99,7 +100,7 @@ export default function SignatureModal({ onConfirm, onClose }) {
             <div className="modal">
                 <div className="modal-header">
                     <h3 className="modal-title">Add Your Signature</h3>
-                    <button className="modal-close" onClick={onClose}>✕</button>
+                    <button className="modal-close" onClick={onClose}><X size={20} /></button>
                 </div>
 
                 <div className="tab-bar">
@@ -107,13 +108,13 @@ export default function SignatureModal({ onConfirm, onClose }) {
                         className={`tab-btn ${activeTab === "draw" ? "tab-btn--active" : ""}`}
                         onClick={() => setActiveTab("draw")}
                     >
-                        ✍️ Draw
+                        <Pen size={16} /> Draw
                     </button>
                     <button
                         className={`tab-btn ${activeTab === "type" ? "tab-btn--active" : ""}`}
                         onClick={() => setActiveTab("type")}
                     >
-                        ⌨️ Type
+                        <Keyboard size={16} /> Type
                     </button>
                 </div>
 
