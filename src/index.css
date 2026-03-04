@@ -448,6 +448,10 @@ body {
 }
 
 .tab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
