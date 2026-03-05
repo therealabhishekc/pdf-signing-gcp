@@ -265,7 +265,7 @@ body {
 .sidebar-list {
   flex: 1;
   overflow-y: auto;
-  padding: 0 12px 12px;
+  padding: 8px 12px 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -314,6 +314,8 @@ body {
   height: 36px;
   object-fit: contain;
   pointer-events: none;
+  filter: brightness(0) invert(1);
+  /* white on dark sidebar */
 }
 
 .thumb-remove-btn {
@@ -364,10 +366,13 @@ body {
 
 /* ── Signature count badge ───────────────────────────────────── */
 .sig-count-badge {
-  position: fixed;
+  position: absolute;
   bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: var(--accent);
   color: #fff;
   font-size: 12px;
