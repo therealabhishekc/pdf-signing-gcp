@@ -32,7 +32,7 @@ export default function StatusOverlay({ state, error, onRetry, onClose }) {
             icon: <CheckCircle2 size={56} className="status-icon-svg text-green-400" />,
             title: "Document Signed Successfully",
             description: "The signed document has been uploaded successfully.",
-            callToAction: "Please click on the Attach Button on the top right corner to Finish",
+            callToAction: <>To complete the process, tap the <strong className="status-cta-highlight">Attach PDF</strong> button in the top-right corner.</>,
             showSpinner: false,
             success: true,
         },
