@@ -191,6 +191,10 @@ function App({ workshopCtx }) {
             workshopCtx.signedPdfId.setLoadedValue(signedPdfId);
             workshopCtx.onSignComplete.executeEvent();
 
+            // Optimistic UI: mark as signed immediately so closing the overlay
+            // shows "Doc Already Signed" even before Foundry propagates the change
+            workshopCtx.isSigned.setLoadedValue(true);
+
             setAppState("DONE");
         } catch (err) {
             setError(err.message);
