@@ -158,7 +158,7 @@ function App({ workshopCtx }) {
         });
     }, []);
 
-    // ── Submit (embed + upload to MongoDB) ─────────────────────────────────
+    // ── Submit (embed + upload + auto-attach via Foundry Action) ────────────
     const handleSubmit = useCallback(async () => {
         if (!pdfData || placedSigs.length === 0) return;
         setAppState("SUBMITTING");
@@ -173,13 +173,22 @@ function App({ workshopCtx }) {
             }
 
             // Upload signed PDF → MongoDB → get unique ID
-            const { uploadSignedPdf } = await import("./services/attachmentService.js");
+            const { uploadSignedPdf, applyAttachAction } = await import("./services/attachmentService.js");
             const signedPdfId = await uploadSignedPdf(modifiedBytes, "signed_document.pdf");
 
-            // Write the signed PDF ID back to Workshop via the SDK
-            workshopCtx.signedPdfId.setLoadedValue(signedPdfId);
+            // Get the Files object primary key from Workshop context
+            const pkField = workshopCtx?.filesObjectPrimaryKey?.fieldValue;
+            const filesObjectPK = pkField?.status === "LOADED" ? pkField.value : null;
 
-            // Fire the onSignComplete event → Workshop triggers bound Action
+            if (!filesObjectPK) {
+                throw new Error("Files object primary key is not available from Workshop.");
+            }
+
+            // Auto-trigger the Foundry Action to attach the PDF
+            await applyAttachAction(signedPdfId, filesObjectPK);
+
+            // Also write back to Workshop for state tracking
+            workshopCtx.signedPdfId.setLoadedValue(signedPdfId);
             workshopCtx.onSignComplete.executeEvent();
 
             setAppState("DONE");

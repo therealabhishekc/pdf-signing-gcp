@@ -55,6 +55,20 @@ export const SIGNING_WIDGET_CONFIG = [
         },
     },
     {
+        fieldId: "filesObjectPrimaryKey",
+        field: {
+            type: "single",
+            label: "Files Object Primary Key",
+            fieldValue: {
+                type: "inputOutput",
+                variableType: {
+                    type: "string",
+                    defaultValue: undefined,
+                },
+            },
+        },
+    },
+    {
         fieldId: "onSignComplete",
         field: {
             type: "single",

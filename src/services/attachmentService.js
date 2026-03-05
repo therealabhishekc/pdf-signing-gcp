@@ -30,3 +30,22 @@ export async function uploadSignedPdf(pdfBytes, filename = "signed_document.pdf"
     const data = await res.json();
     return data.id;
 }
+
+/**
+ * Trigger the Foundry Action to attach the signed PDF to the Files object.
+ * @param {string} uuid — the signed PDF's unique ID in MongoDB
+ * @param {string} filesObjectPrimaryKey — primary key of the Files object
+ * @returns {Promise<object>} Foundry action result
+ */
+export async function applyAttachAction(uuid, filesObjectPrimaryKey) {
+    const res = await fetch("/api/apply-action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uuid, filesObjectPrimaryKey }),
+    });
+    if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Action failed (HTTP ${res.status})`);
+    }
+    return await res.json();
+}

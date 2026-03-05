@@ -118,6 +118,57 @@ app.get("/api/download-signed-pdf/:id", async (req, res) => {
     }
 });
 
+// ── Foundry Action config (from environment) ─────────────────────────────────
+const ONTOLOGY_API_NAME = process.env.FOUNDRY_ONTOLOGY_API_NAME ?? "";
+const ACTION_API_NAME = process.env.FOUNDRY_ACTION_API_NAME ?? "";
+
+/**
+ * POST /api/apply-action
+ * Triggers the Foundry Action Type to attach the signed PDF to the Files object.
+ * Body: { uuid: string, filesObjectPrimaryKey: string }
+ */
+app.post("/api/apply-action", async (req, res) => {
+    const { uuid, filesObjectPrimaryKey } = req.body;
+    if (!uuid || !filesObjectPrimaryKey) {
+        return res.status(400).json({ error: "uuid and filesObjectPrimaryKey are required" });
+    }
+    if (!ONTOLOGY_API_NAME || !ACTION_API_NAME) {
+        return res.status(500).json({ error: "Foundry Action env vars not configured" });
+    }
+
+    try {
+        const token = await getToken();
+        const actionUrl = `${STACK}/api/v2/ontologies/${encodeURIComponent(ONTOLOGY_API_NAME)}/actions/${encodeURIComponent(ACTION_API_NAME)}/apply`;
+
+        const actionRes = await fetch(actionUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                parameters: {
+                    fileObject: filesObjectPrimaryKey,
+                    uuid: uuid,
+                },
+            }),
+        });
+
+        if (!actionRes.ok) {
+            const errBody = await actionRes.text();
+            console.error("[apply-action] Foundry error:", actionRes.status, errBody);
+            return res.status(actionRes.status).json({ error: `Foundry action failed: ${errBody}` });
+        }
+
+        const result = await actionRes.json();
+        console.log("[apply-action] Success:", JSON.stringify(result));
+        res.json(result);
+    } catch (err) {
+        console.error("[apply-action]", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ── Serve React static bundle ────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, "dist")));
 app.get(/.*/, (_req, res) => {

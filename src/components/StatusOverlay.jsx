@@ -1,5 +1,5 @@
 import React from "react";
-import { FileText, Loader2, UploadCloud, CheckCircle2, FileXCorner, AlertTriangle, X, Paperclip, ArrowUp } from "lucide-react";
+import { FileText, Loader2, UploadCloud, CheckCircle2, FileXCorner, AlertTriangle, X } from "lucide-react";
 
 /**
  * Fullscreen overlay for loading, success, and error states.
@@ -31,8 +31,7 @@ export default function StatusOverlay({ state, error, onRetry, onClose }) {
         DONE: {
             icon: <CheckCircle2 size={56} className="status-icon-svg text-green-400" />,
             title: "Document Signed Successfully",
-            description: "The signed document has been uploaded successfully.",
-            callToAction: <>To complete the process, tap the <strong className="status-cta-highlight"><Paperclip size={14} /> Attach PDF</strong> button in the top-right corner.</>,
+            description: "Your signed document has been attached successfully.",
             showSpinner: false,
             success: true,
         },
@@ -73,14 +72,6 @@ export default function StatusOverlay({ state, error, onRetry, onClose }) {
                     </button>
                 )}
             </div>
-
-            {/* Bouncing arrow indicator for DONE state */}
-            {config.success && (
-                <div className="done-arrow-indicator">
-                    <ArrowUp size={32} className="done-arrow-icon" />
-                    <span className="done-arrow-hint">Click Attach PDF to<br />complete the process</span>
-                </div>
-            )}
         </div>
     );
 }
