@@ -55,11 +55,17 @@ export default function DraggableSignature({
             const cy = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
             const dx = cx - dragStart.current.clientX;
             const dy = cy - dragStart.current.clientY;
-            setPos((prev) => ({
-                ...prev,
-                x: Math.max(0, dragStart.current.startX + dx),
-                y: Math.max(0, dragStart.current.startY + dy),
-            }));
+            setPos((prev) => {
+                // Clamp to parent (.pdf-viewer) bounds
+                const parent = moveEvent.target?.closest?.(".pdf-viewer");
+                const maxX = parent ? parent.scrollWidth - prev.width : Infinity;
+                const maxY = parent ? parent.scrollHeight - prev.height : Infinity;
+                return {
+                    ...prev,
+                    x: Math.min(maxX, Math.max(0, dragStart.current.startX + dx)),
+                    y: Math.min(maxY, Math.max(0, dragStart.current.startY + dy)),
+                };
+            });
         };
         const onEnd = () => {
             window.removeEventListener("mousemove", onMove);

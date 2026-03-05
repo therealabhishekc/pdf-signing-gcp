@@ -31,7 +31,8 @@ export default function StatusOverlay({ state, error, onRetry, onClose }) {
         DONE: {
             icon: <CheckCircle2 size={56} className="status-icon-svg text-green-400" />,
             title: "Document Signed Successfully",
-            description: "The signed document has been uploaded to Foundry.",
+            description: "The signed document has been uploaded successfully.",
+            callToAction: "Please click on the Attach Button on the top right corner to Finish",
             showSpinner: false,
             success: true,
         },
@@ -58,6 +59,9 @@ export default function StatusOverlay({ state, error, onRetry, onClose }) {
                 <div className="status-icon">{config.icon}</div>
                 <h2 className="status-title">{config.title}</h2>
                 <p className="status-description">{config.description}</p>
+                {config.callToAction && (
+                    <p className="status-cta">{config.callToAction}</p>
+                )}
                 {config.showSpinner && (
                     <div className="spinner">
                         <div className="spinner-ring" />

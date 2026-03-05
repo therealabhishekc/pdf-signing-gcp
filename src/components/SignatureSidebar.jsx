@@ -30,7 +30,6 @@ export default function SignatureSidebar({
         <aside className="signature-sidebar">
             <div className="sidebar-header">
                 <h4 className="sidebar-title">Signatures</h4>
-                <span className="sidebar-count">{signatures.length}/{maxSignatures}</span>
             </div>
 
             {!isSigned && (
