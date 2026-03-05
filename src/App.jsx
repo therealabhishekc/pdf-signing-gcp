@@ -3,6 +3,7 @@ import { version } from "../package.json";
 import { Check } from "lucide-react";
 import PdfViewer from "./components/PdfViewer.jsx";
 import SignatureModal from "./components/SignatureModal.jsx";
+import SignatureSidebar from "./components/SignatureSidebar.jsx";
 import DraggableSignature from "./components/DraggableSignature.jsx";
 import StatusOverlay from "./components/StatusOverlay.jsx";
 import Toolbar from "./components/Toolbar.jsx";
@@ -43,6 +44,7 @@ function App({ workshopCtx }) {
     const [currentPage, setCurrentPage] = useState(1);
     const [zoom, setZoom] = useState(1.0);
     const [pendingSig, setPendingSig] = useState(null);      // { dataUrl }
+    const [signatureLibrary, setSignatureLibrary] = useState([]);  // [{ id, dataUrl }] — sidebar library (max 15)
     const [placedSigs, setPlacedSigs] = useState([]);        // [{ id, pageIndex, x, y, width, height, dataUrl }]
     const [error, setError] = useState(null);
     const pdfViewerRef = useRef(null);
@@ -107,21 +109,33 @@ function App({ workshopCtx }) {
     const handleAddSignature = () => setAppState("SIGNING");
 
     const handleSignatureConfirm = (dataUrl) => {
-        // Immediately place the signature at a default position
+        // Add to the sidebar library (max 15)
+        setSignatureLibrary((prev) => {
+            if (prev.length >= 15) return prev;
+            return [...prev, { id: Date.now().toString(), dataUrl }];
+        });
+        setAppState("VIEWING");
+    };
+
+    const handleRemoveFromLibrary = useCallback((id) => {
+        setSignatureLibrary((prev) => prev.filter((s) => s.id !== id));
+    }, []);
+
+    /** Called when a sidebar thumbnail is dropped onto the PDF canvas */
+    const handleDropOnPdf = useCallback((dataUrl, xPx, yPx) => {
         setPlacedSigs((prev) => [
             ...prev,
             {
                 id: Date.now().toString(),
                 pageIndex: currentPage - 1,
-                x: 50, // default PDF points
-                y: 50,
+                x: xPx / zoom,
+                y: yPx / zoom,
                 width: 200,
                 height: 60,
                 dataUrl,
             },
         ]);
-        setAppState("VIEWING");
-    };
+    }, [currentPage, zoom]);
 
     const handleUpdateSignature = useCallback((id, newCoords) => {
         setPlacedSigs((prev) => prev.map((sig) =>
@@ -206,48 +220,57 @@ function App({ workshopCtx }) {
                         onNextPage={handleNextPage}
                         onZoomIn={handleZoomIn}
                         onZoomOut={handleZoomOut}
-                        onAddSignature={handleAddSignature}
                         onSubmit={handleSubmit}
                         canSubmit={placedSigs.length > 0}
-                        isPlacing={false}
                         isSigned={isSigned}
                     />
 
-                    <div className="pdf-workspace" ref={pdfViewerRef}>
-                        <PdfViewer
-                            pdfData={pdfData}
-                            currentPage={currentPage}
-                            zoom={zoom}
-                            onPageLoaded={setTotalPages}
-                            overlayContent={
-                                <>
-                                    {placedSigs
-                                        .filter((sig) => sig.pageIndex === currentPage - 1)
-                                        .map((sig) => (
-                                            <DraggableSignature
-                                                key={sig.id}
-                                                id={sig.id}
-                                                dataUrl={sig.dataUrl}
-                                                initialX={sig.x}
-                                                initialY={sig.y}
-                                                initialWidth={sig.width}
-                                                initialHeight={sig.height}
-                                                zoom={zoom}
-                                                onUpdate={handleUpdateSignature}
-                                                onRemove={handleRemoveSignature}
-                                                onCopy={handleCopySignature}
-                                            />
-                                        ))}
-                                </>
-                            }
-                        />
+                    <div className="app-body">
+                        <div className="pdf-workspace" ref={pdfViewerRef}>
+                            <PdfViewer
+                                pdfData={pdfData}
+                                currentPage={currentPage}
+                                zoom={zoom}
+                                onPageLoaded={setTotalPages}
+                                onDropSignature={handleDropOnPdf}
+                                overlayContent={
+                                    <>
+                                        {placedSigs
+                                            .filter((sig) => sig.pageIndex === currentPage - 1)
+                                            .map((sig) => (
+                                                <DraggableSignature
+                                                    key={sig.id}
+                                                    id={sig.id}
+                                                    dataUrl={sig.dataUrl}
+                                                    initialX={sig.x}
+                                                    initialY={sig.y}
+                                                    initialWidth={sig.width}
+                                                    initialHeight={sig.height}
+                                                    zoom={zoom}
+                                                    onUpdate={handleUpdateSignature}
+                                                    onRemove={handleRemoveSignature}
+                                                    onCopy={handleCopySignature}
+                                                />
+                                            ))}
+                                    </>
+                                }
+                            />
 
-                        {/* Floating signature counter badge */}
-                        {placedSigs.length > 0 && (
-                            <div className="sig-count-badge">
-                                <Check size={14} /> {placedSigs.length} signature{placedSigs.length > 1 ? "s" : ""}
-                            </div>
-                        )}
+                            {/* Floating signature counter badge */}
+                            {placedSigs.length > 0 && (
+                                <div className="sig-count-badge">
+                                    <Check size={14} /> {placedSigs.length} signature{placedSigs.length > 1 ? "s" : ""}
+                                </div>
+                            )}
+                        </div>
+
+                        <SignatureSidebar
+                            signatures={signatureLibrary}
+                            onAddSignature={handleAddSignature}
+                            onRemoveSignature={handleRemoveFromLibrary}
+                            maxSignatures={15}
+                            isSigned={isSigned}
+                        />
                     </div>
                 </>
             )}

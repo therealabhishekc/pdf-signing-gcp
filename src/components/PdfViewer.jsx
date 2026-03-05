@@ -10,12 +10,14 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 /**
  * PdfViewer — renders a single PDF page onto a canvas using PDF.js.
  * Also renders an overlay container on top for interactive DOM signatures.
+ * Accepts drops from the SignatureSidebar to place new signatures.
  *
  * Props:
  *   pdfData: ArrayBuffer  — the raw PDF bytes
  *   currentPage: number
  *   zoom: number
  *   onPageLoaded: (totalPages) => void
+ *   onDropSignature: (dataUrl, xPx, yPx) => void — called when a sidebar sig is dropped
  *   overlayContent: ReactNode | null — rendered inside .pdf-viewer, same coordinate space as canvas
  */
 export default function PdfViewer({
@@ -23,6 +25,7 @@ export default function PdfViewer({
     currentPage,
     zoom,
     onPageLoaded,
+    onDropSignature,
     overlayContent = null,
 }) {
     const canvasRef = useRef(null);
@@ -87,8 +90,29 @@ export default function PdfViewer({
         renderPage();
     }, [renderPage]);
 
+    // ── Drop handling for sidebar signatures ──────────────────────────────
+    const handleDragOver = useCallback((e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+    }, []);
+
+    const handleDrop = useCallback((e) => {
+        e.preventDefault();
+        const dataUrl = e.dataTransfer.getData("application/x-signature-dataurl");
+        if (!dataUrl || !onDropSignature || !canvasRef.current) return;
+
+        const rect = canvasRef.current.getBoundingClientRect();
+        const xPx = e.clientX - rect.left;
+        const yPx = e.clientY - rect.top;
+        onDropSignature(dataUrl, xPx, yPx);
+    }, [onDropSignature]);
+
     return (
-        <div className="pdf-viewer">
+        <div
+            className="pdf-viewer"
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+        >
             {loading && <div className="pdf-loading-badge">Rendering…</div>}
             <canvas ref={canvasRef} className="pdf-canvas" />
             {overlayContent}

@@ -1,5 +1,5 @@
 import React from "react";
-import { CheckCircle2, Signature, Send, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
+import { CheckCircle2, Send, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
 
 /**
  * Top toolbar: page navigation, zoom, and action buttons.
@@ -12,11 +12,9 @@ export default function Toolbar({
     onNextPage,
     onZoomIn,
     onZoomOut,
-    onAddSignature,
     onSubmit,
     canSubmit,
-    isPlacing,
-    isSigned,         // boolean from Workshop — hides Sign button if doc already signed
+    isSigned,         // boolean from Workshop — shows badge if doc already signed
 }) {
     return (
         <div className="toolbar">
@@ -53,16 +51,10 @@ export default function Toolbar({
             </div>
 
             <div className="toolbar-section toolbar-right">
-                {isSigned ? (
+                {isSigned && (
                     <span className="signed-badge" title="This document has already been signed">
                         <CheckCircle2 size={16} /> Doc Already Signed
                     </span>
-                ) : (
-                    !isPlacing && (
-                        <button className="btn btn-secondary" onClick={onAddSignature} title="Open signature pad">
-                            <Signature size={16} /> Sign
-                        </button>
-                    )
                 )}
                 {canSubmit && !isSigned && (
                     <button className="btn btn-primary" onClick={onSubmit} title="Submit signed document">
