@@ -285,13 +285,15 @@ function App({ workshopCtx }) {
                             )}
                         </div>
 
-                        <SignatureSidebar
-                            signatures={signatureLibrary}
-                            onAddSignature={handleAddSignature}
-                            onRemoveSignature={handleRemoveFromLibrary}
-                            maxSignatures={15}
-                            isSigned={isSigned}
-                        />
+                        {!isSigned && (
+                            <SignatureSidebar
+                                signatures={signatureLibrary}
+                                onAddSignature={handleAddSignature}
+                                onRemoveSignature={handleRemoveFromLibrary}
+                                maxSignatures={15}
+                                isSigned={isSigned}
+                            />
+                        )}
                     </div>
                 </>
             )}

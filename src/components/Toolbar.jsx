@@ -1,5 +1,5 @@
 import React from "react";
-import { CheckCircle2, Send, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
+import { Lock, Send, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
 
 /**
  * Top toolbar: page navigation, zoom, and action buttons.
@@ -52,8 +52,8 @@ export default function Toolbar({
 
             <div className="toolbar-section toolbar-right">
                 {isSigned && (
-                    <span className="signed-badge" title="This document has already been signed">
-                        <CheckCircle2 size={16} /> Doc Already Signed
+                    <span className="signed-badge" title="This document has been signed">
+                        <Lock size={14} /> Document Signed
                     </span>
                 )}
                 {canSubmit && !isSigned && (

@@ -165,7 +165,7 @@ export default function SignatureModal({ onConfirm, onClose }) {
                         onClick={handleDone}
                         disabled={!isDone || (activeTab === "draw" && isEmpty)}
                     >
-                        Place Signature →
+                        Create Signature →
                     </button>
                 </div>
             </div>
