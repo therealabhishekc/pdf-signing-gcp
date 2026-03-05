@@ -49,6 +49,7 @@ function App({ workshopCtx }) {
     const [error, setError] = useState(null);
     const pdfViewerRef = useRef(null);
     const lastLoadedRid = useRef(null);                      // track which RID is currently displayed
+    const signedPdfRef = useRef(null);                        // holds signed PDF bytes after submit
 
     // isSigned is only true when Workshop explicitly sends boolean true.
     // null, undefined, false, or unloaded state → false → Sign button shown.
@@ -187,6 +188,9 @@ function App({ workshopCtx }) {
             // Auto-trigger the Foundry Action to attach the PDF
             await applyAttachAction(signedPdfId, filesObjectPK);
 
+            // Store the signed PDF locally so we can show it after closing overlay
+            signedPdfRef.current = modifiedBytes;
+
             // Also write back to Workshop for state tracking
             workshopCtx.signedPdfId.setLoadedValue(signedPdfId);
             workshopCtx.onSignComplete.executeEvent();
@@ -209,8 +213,12 @@ function App({ workshopCtx }) {
         setAppState("WAITING");
     };
 
-    // Close the DONE overlay and go back to VIEWING
+    // Close the DONE overlay — swap in the signed PDF so user sees the final result
     const handleDoneClose = () => {
+        if (signedPdfRef.current) {
+            setPdfData(signedPdfRef.current);
+            signedPdfRef.current = null;
+        }
         setPlacedSigs([]);
         setAppState("VIEWING");
     };
