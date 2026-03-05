@@ -1,5 +1,5 @@
 import React from "react";
-import { Lock, Send, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
+import { Lock, Send, Download, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
 
 /**
  * Top toolbar: page navigation, zoom, and action buttons.
@@ -13,6 +13,7 @@ export default function Toolbar({
     onZoomIn,
     onZoomOut,
     onSubmit,
+    onDownload,
     canSubmit,
     isSigned,         // boolean from Workshop — shows badge if doc already signed
 }) {
@@ -61,6 +62,9 @@ export default function Toolbar({
                         <Send size={16} /> Submit
                     </button>
                 )}
+                <button className="btn btn-icon" onClick={onDownload} title="Download PDF">
+                    <Download size={16} />
+                </button>
             </div>
         </div>
     );

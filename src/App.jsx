@@ -225,6 +225,20 @@ function App({ workshopCtx }) {
 
     const isViewing = appState === "VIEWING" || appState === "SIGNING";
 
+    // ── Download the current PDF (signed or unsigned) ─────────────────────
+    const handleDownload = useCallback(() => {
+        if (!pdfData) return;
+        const blob = new Blob([pdfData], { type: "application/pdf" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = isSigned ? "signed_document.pdf" : "document.pdf";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }, [pdfData, isSigned]);
+
     return (
         <div className="app">
             {/* Status overlays for non-viewing states */}
@@ -242,6 +256,7 @@ function App({ workshopCtx }) {
                         onZoomIn={handleZoomIn}
                         onZoomOut={handleZoomOut}
                         onSubmit={handleSubmit}
+                        onDownload={handleDownload}
                         canSubmit={placedSigs.length > 0}
                         isSigned={isSigned}
                     />
