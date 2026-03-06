@@ -1,5 +1,5 @@
-import React from "react";
-import { Lock, Send, Download, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import { Lock, Send, Download, MoreVertical, Sun, Moon, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
 
 /**
  * Top toolbar: page navigation, zoom, and action buttons.
@@ -15,8 +15,34 @@ export default function Toolbar({
     onSubmit,
     onDownload,
     canSubmit,
-    isSigned,         // boolean from Workshop — shows badge if doc already signed
+    isSigned,
 }) {
+    const [menuOpen, setMenuOpen] = useState(false);
+    const menuRef = useRef(null);
+
+    // Read initial theme from document
+    const [theme, setTheme] = useState(() => {
+        return document.documentElement.getAttribute("data-theme") || "dark";
+    });
+
+    // Close menu on outside click
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (menuRef.current && !menuRef.current.contains(e.target)) {
+                setMenuOpen(false);
+            }
+        };
+        if (menuOpen) document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [menuOpen]);
+
+    const switchTheme = (newTheme) => {
+        setTheme(newTheme);
+        document.documentElement.setAttribute("data-theme", newTheme);
+        localStorage.setItem("pdf-app-theme", newTheme);
+        setMenuOpen(false);
+    };
+
     return (
         <div className="toolbar">
             <div className="toolbar-section toolbar-left">
@@ -65,6 +91,34 @@ export default function Toolbar({
                 <button className="btn btn-icon" onClick={onDownload} title="Download PDF">
                     <Download size={16} />
                 </button>
+
+                {/* Three-dot menu */}
+                <div className="toolbar-menu-wrapper" ref={menuRef}>
+                    <button
+                        className="btn btn-icon"
+                        onClick={() => setMenuOpen((prev) => !prev)}
+                        title="More options"
+                    >
+                        <MoreVertical size={16} />
+                    </button>
+
+                    {menuOpen && (
+                        <div className="toolbar-dropdown">
+                            <button
+                                className={`toolbar-dropdown-item ${theme === "light" ? "toolbar-dropdown-item--active" : ""}`}
+                                onClick={() => switchTheme("light")}
+                            >
+                                <Sun size={14} /> Light Mode
+                            </button>
+                            <button
+                                className={`toolbar-dropdown-item ${theme === "dark" ? "toolbar-dropdown-item--active" : ""}`}
+                                onClick={() => switchTheme("dark")}
+                            >
+                                <Moon size={14} /> Dark Mode
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

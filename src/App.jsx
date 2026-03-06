@@ -9,6 +9,12 @@ import StatusOverlay from "./components/StatusOverlay.jsx";
 import Toolbar from "./components/Toolbar.jsx";
 import { embedSignature } from "./services/pdfSigner.js";
 
+// Apply saved theme on load (before React renders)
+(() => {
+    const saved = localStorage.getItem("pdf-app-theme");
+    if (saved) document.documentElement.setAttribute("data-theme", saved);
+})();
+
 // ─── Workshop SDK ───────────────────────────────────────────────────────────
 import { useWorkshopContext, visitLoadingState } from "@osdk/workshop-iframe-custom-widget";
 import { SIGNING_WIDGET_CONFIG } from "./workshopConfig.js";
