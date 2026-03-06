@@ -501,7 +501,7 @@ body {
   align-items: center;
   justify-content: center;
   z-index: 100;
-  background: radial-gradient(ellipse at 50% 30%, rgba(139, 92, 246, 0.08) 0%, transparent 70%), var(--bg-app);
+  background: var(--app-gradient), var(--bg-app);
 }
 
 .status-overlay--success .status-card {
@@ -523,7 +523,7 @@ body {
   border-radius: var(--radius-lg);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  box-shadow: var(--shadow-lg), 0 0 40px rgba(139, 92, 246, 0.05);
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
   max-width: 380px;
   width: 90%;
   text-align: center;
