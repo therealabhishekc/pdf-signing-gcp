@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import SignaturePad from "signature_pad";
-import { PenTool, Keyboard, X } from "lucide-react";
+import { PenTool, Keyboard, Upload, X } from "lucide-react";
 
 const HANDWRITING_FONTS = [
     { name: "Dancing Script", css: "'Dancing Script', cursive" },
@@ -8,8 +8,39 @@ const HANDWRITING_FONTS = [
     { name: "Satisfy", css: "'Satisfy', cursive" },
 ];
 
+const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2 MB
+
 /**
- * SignatureModal — modal with two tabs: Draw and Type.
+ * Remove white / near-white background from an image and return a transparent PNG data URL.
+ * Useful for JPEG signature photos that have a white paper background.
+ */
+function removeWhiteBackground(dataUrl, threshold = 240) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0);
+
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                if (data[i] >= threshold && data[i + 1] >= threshold && data[i + 2] >= threshold) {
+                    data[i + 3] = 0; // make pixel transparent
+                }
+            }
+            ctx.putImageData(imageData, 0, 0);
+            resolve(canvas.toDataURL("image/png"));
+        };
+        img.src = dataUrl;
+    });
+}
+
+/**
+ * SignatureModal — modal with three tabs: Draw, Type, and Upload.
  * Calls onConfirm(dataUrl) when the user confirms.
  */
 export default function SignatureModal({ onConfirm, onClose }) {
@@ -17,6 +48,12 @@ export default function SignatureModal({ onConfirm, onClose }) {
     const [typedName, setTypedName] = useState("");
     const [selectedFont, setSelectedFont] = useState(HANDWRITING_FONTS[0]);
     const [isEmpty, setIsEmpty] = useState(true);
+
+    // Upload state
+    const [uploadPreview, setUploadPreview] = useState(null); // processed dataUrl
+    const [uploadError, setUploadError] = useState(null);
+    const [isDraggingOver, setIsDraggingOver] = useState(false);
+    const fileInputRef = useRef(null);
 
     const canvasRef = useRef(null);
     const sigPadRef = useRef(null);
@@ -80,20 +117,78 @@ export default function SignatureModal({ onConfirm, onClose }) {
         return offscreen.toDataURL("image/png");
     }, [typedName, selectedFont]);
 
+    // ── Upload handling ──────────────────────────────────────────────────
+    const processFile = useCallback(async (file) => {
+        setUploadError(null);
+        setUploadPreview(null);
+
+        if (!ACCEPTED_TYPES.includes(file.type)) {
+            setUploadError("Unsupported format. Use PNG, JPEG, or WebP.");
+            return;
+        }
+        if (file.size > MAX_FILE_SIZE) {
+            setUploadError("File too large. Maximum size is 2 MB.");
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = async () => {
+            let dataUrl = reader.result;
+
+            // Auto-remove white background for JPEG uploads
+            if (file.type === "image/jpeg") {
+                dataUrl = await removeWhiteBackground(dataUrl);
+            }
+
+            setUploadPreview(dataUrl);
+        };
+        reader.readAsDataURL(file);
+    }, []);
+
+    const handleFileSelect = (e) => {
+        const file = e.target.files?.[0];
+        if (file) processFile(file);
+    };
+
+    const handleDropFile = (e) => {
+        e.preventDefault();
+        setIsDraggingOver(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) processFile(file);
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        setIsDraggingOver(true);
+    };
+
+    const handleDragLeave = () => setIsDraggingOver(false);
+
+    const handleRemoveUpload = () => {
+        setUploadPreview(null);
+        setUploadError(null);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+    };
+
+    // ── Confirm ──────────────────────────────────────────────────────────
     const handleDone = () => {
         if (activeTab === "draw") {
             const pad = sigPadRef.current;
             if (!pad || pad.isEmpty()) return;
             onConfirm(pad.toDataURL("image/png"));
-        } else {
+        } else if (activeTab === "type") {
             if (!typedName.trim()) return;
             onConfirm(typeToDataUrl());
+        } else if (activeTab === "upload") {
+            if (!uploadPreview) return;
+            onConfirm(uploadPreview);
         }
     };
 
     const drawTabEmpty = activeTab === "draw" && isEmpty;
     const typeTabEmpty = activeTab === "type" && !typedName.trim();
-    const isDone = !drawTabEmpty && !typeTabEmpty;
+    const uploadTabEmpty = activeTab === "upload" && !uploadPreview;
+    const isDone = !drawTabEmpty && !typeTabEmpty && !uploadTabEmpty;
 
     return (
         <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -115,6 +210,12 @@ export default function SignatureModal({ onConfirm, onClose }) {
                         onClick={() => setActiveTab("type")}
                     >
                         <Keyboard size={16} /> Type
+                    </button>
+                    <button
+                        className={`tab-btn ${activeTab === "upload" ? "tab-btn--active" : ""}`}
+                        onClick={() => setActiveTab("upload")}
+                    >
+                        <Upload size={16} /> Upload
                     </button>
                 </div>
 
@@ -154,6 +255,45 @@ export default function SignatureModal({ onConfirm, onClose }) {
                                     </button>
                                 ))}
                             </div>
+                        </div>
+                    )}
+
+                    {activeTab === "upload" && (
+                        <div className="upload-tab">
+                            {!uploadPreview ? (
+                                <div
+                                    className={`upload-dropzone ${isDraggingOver ? "upload-dropzone--active" : ""}`}
+                                    onDrop={handleDropFile}
+                                    onDragOver={handleDragOver}
+                                    onDragLeave={handleDragLeave}
+                                    onClick={() => fileInputRef.current?.click()}
+                                >
+                                    <Upload size={32} className="upload-dropzone-icon" />
+                                    <p className="upload-dropzone-text">
+                                        Drag & drop your signature image here
+                                    </p>
+                                    <p className="upload-dropzone-hint">
+                                        or click to browse · PNG, JPEG, WebP · Max 2 MB
+                                    </p>
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept=".png,.jpg,.jpeg,.webp"
+                                        onChange={handleFileSelect}
+                                        hidden
+                                    />
+                                </div>
+                            ) : (
+                                <div className="upload-preview">
+                                    <img src={uploadPreview} alt="Uploaded signature" className="upload-preview-img" />
+                                    <button className="btn btn-ghost" onClick={handleRemoveUpload}>
+                                        Remove & re-upload
+                                    </button>
+                                </div>
+                            )}
+                            {uploadError && (
+                                <p className="upload-error">{uploadError}</p>
+                            )}
                         </div>
                     )}
                 </div>
