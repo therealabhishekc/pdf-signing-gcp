@@ -1087,6 +1087,18 @@ body {
   color: #fff;
 }
 
+/* Light mode overrides for close button */
+[data-theme="light"] .status-close-btn {
+  border-color: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.05);
+  color: rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="light"] .status-close-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: #000;
+}
+
 /* ── Version badge ─────────────────────────────────────────────────────────── */
 .version-badge {
   position: fixed;

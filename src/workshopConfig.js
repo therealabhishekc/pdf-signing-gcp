@@ -41,20 +41,6 @@ export const SIGNING_WIDGET_CONFIG = [
         },
     },
     {
-        fieldId: "signedPdfId",
-        field: {
-            type: "single",
-            label: "Signed PDF ID",
-            fieldValue: {
-                type: "inputOutput",
-                variableType: {
-                    type: "string",
-                    defaultValue: undefined,
-                },
-            },
-        },
-    },
-    {
         fieldId: "filesObjectPrimaryKey",
         field: {
             type: "single",

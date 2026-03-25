@@ -198,7 +198,6 @@ function App({ workshopCtx }) {
             signedPdfRef.current = modifiedBytes;
 
             // Also write back to Workshop for state tracking
-            workshopCtx.signedPdfId.setLoadedValue(signedPdfId);
             workshopCtx.onSignComplete.executeEvent();
 
             // Optimistic UI: mark as signed immediately so closing the overlay
