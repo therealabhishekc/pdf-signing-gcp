@@ -50,15 +50,26 @@ app.get("/api/download-pdf", async (req, res) => {
     if (!primaryKey) return res.status(400).json({ error: "primaryKey is required" });
 
     try {
-        const doc = await client(OCrmDocument).fetchOne(primaryKey);
-        
+        let doc;
+        try {
+            doc = await client(OCrmDocument).fetchOne(primaryKey);
+        } catch (e) {
+            throw new Error(`Foundry Object with Primary Key '${primaryKey}' not found. (${e.message})`);
+        }
+
         const attachmentRef = doc.document;
         if (!attachmentRef) {
             return res.status(404).json({ error: "No PDF attached to this document." });
         }
 
-        const metadata = await attachmentRef.fetchMetadata();
-        const contentRes = await attachmentRef.fetchContents();
+        let metadata, contentRes;
+        try {
+            metadata = await attachmentRef.fetchMetadata();
+            contentRes = await attachmentRef.fetchContents();
+        } catch (e) {
+            throw new Error(`Failed to fetch attachment contents from Foundry: ${e.message}`);
+        }
+
         const arrayBuffer = await contentRes.arrayBuffer();
 
         res.setHeader("Content-Type", metadata.mediaType || "application/pdf");
