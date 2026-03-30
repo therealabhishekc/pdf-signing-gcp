@@ -13,7 +13,10 @@ import express from "express";
 import { fileURLToPath } from "url";
 import path from "path";
 import sgMail from "@sendgrid/mail";
-import { connectDb, storePdf, getPdf } from "./db.js";
+import { createAttachmentUpload } from "@osdk/client";
+import multer from "multer";
+import jwt from "jsonwebtoken";
+import rateLimit from "express-rate-limit";
 import client from "./foundryClient.js";
 import { createAttachmentUpload } from "@osdk/client";
 // Note: In real setup, you would have ran: npm install @testing-pdf/sdk
@@ -33,6 +36,38 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use(express.json());
 
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 50,
+    message: { error: "Too many requests" },
+});
+app.use("/api/", apiLimiter);
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+async function withRetry(fn, maxRetries = 3, delayMs = 1000) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await fn();
+        } catch (err) {
+            if (attempt === maxRetries) throw err;
+            const isTransient = err.status === 429 || err.status >= 500;
+            if (!isTransient && err.status !== undefined) throw err;
+            await new Promise(r => setTimeout(r, delayMs * attempt));
+            console.log(`[withRetry] Attempt ${attempt} failed, retrying...`);
+        }
+    }
+}
+
+function isValidPdf(buffer) {
+    const header = Buffer.from(buffer).slice(0, 5).toString();
+    return header.startsWith("%PDF-");
+}
+
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 25 * 1024 * 1024 } // 25MB Max
+});
+
 // ── API routes ────────────────────────────────────────────────────────────────
 
 /**
@@ -40,13 +75,25 @@ app.use(express.json());
  * Downloads a PDF attachment from Foundry using OSDK.
  */
 app.get("/api/download-pdf", async (req, res) => {
-    const { primaryKey } = req.query;
+    const { primaryKey, token } = req.query;
     if (!primaryKey) return res.status(400).json({ error: "primaryKey is required" });
+
+    // Enforce JWT validation if a token is explicitly passed (Participant Link)
+    if (token) {
+        try {
+            const decoded = jwt.verify(token, process.env.INVITE_SECRET || "default_dev_secret");
+            if (decoded.primaryKey !== primaryKey) {
+                return res.status(403).json({ error: "Token is not valid for this document" });
+            }
+        } catch (e) {
+            return res.status(403).json({ error: "Invalid or expired token" });
+        }
+    }
 
     try {
         let doc;
         try {
-            doc = await client(OCrmDocument).fetchOne(primaryKey);
+            doc = await withRetry(() => client(OCrmDocument).fetchOne(primaryKey));
         } catch (e) {
             throw new Error(`Foundry Object with Primary Key '${primaryKey}' not found. (${e.message})`);
         }
@@ -58,17 +105,31 @@ app.get("/api/download-pdf", async (req, res) => {
 
         let metadata, contentRes;
         try {
-            metadata = await attachmentRef.fetchMetadata();
-            contentRes = await attachmentRef.fetchContents();
+            metadata = await withRetry(() => attachmentRef.fetchMetadata());
+            contentRes = await withRetry(() => attachmentRef.fetchContents());
         } catch (e) {
             throw new Error(`Failed to fetch attachment contents from Foundry: ${e.message}`);
         }
 
-        const arrayBuffer = await contentRes.arrayBuffer();
-
         res.setHeader("Content-Type", metadata.mediaType || "application/pdf");
         res.setHeader("Content-Disposition", `attachment; filename="${metadata.filename || "document.pdf"}"`);
-        res.send(Buffer.from(arrayBuffer));
+
+        // Stream PDF contents directly instead of buffering in RAM
+        if (contentRes.body && typeof contentRes.body.getReader === 'function') {
+            const reader = contentRes.body.getReader();
+            const pump = async () => {
+                const { done, value } = await reader.read();
+                if (done) { res.end(); return; }
+                res.write(Buffer.from(value));
+                return pump();
+            };
+            await pump();
+        } else if (contentRes.body && contentRes.body.pipe) {
+            contentRes.body.pipe(res);
+        } else {
+            const arrayBuffer = await contentRes.arrayBuffer();
+             res.send(Buffer.from(arrayBuffer));
+        }
     } catch (err) {
         console.error("[download-pdf]", err);
         res.status(500).json({ error: err.message });
@@ -76,77 +137,49 @@ app.get("/api/download-pdf", async (req, res) => {
 });
 
 /**
- * POST /api/upload-pdf?filename=signed_document.pdf
- * Stores the signed PDF in MongoDB and returns a unique ID.
- * Body: raw binary (application/octet-stream)
- * Response: { id }
+ * POST /api/sign-and-attach
+ * Receives the signed PDF directly from the browser RAM and uploads it to Palantir.
+ * Body: FormData containing { pdf (File), primaryKey, token, filename }
  */
-app.post(
-    "/api/upload-pdf",
-    express.raw({ type: "application/octet-stream", limit: "100mb" }),
-    async (req, res) => {
-        const { filename = "signed_document.pdf" } = req.query;
+app.post("/api/sign-and-attach", upload.single("pdf"), async (req, res) => {
+    const { primaryKey, token, filename = "signed_document.pdf" } = req.body;
+
+    if (!primaryKey) {
+        return res.status(400).json({ error: "primaryKey is required" });
+    }
+
+    // JWT Verification (required if user accessed via a participant token)
+    if (token && token !== "null" && token !== "undefined") {
         try {
-            const id = await storePdf(req.body, filename);
-            res.json({ id });
-        } catch (err) {
-            console.error("[upload-pdf]", err);
-            res.status(500).json({ error: err.message });
+            const decoded = jwt.verify(token, process.env.INVITE_SECRET || "default_dev_secret");
+            if (decoded.primaryKey !== primaryKey) {
+                return res.status(403).json({ error: "Token is not valid for this document" });
+            }
+        } catch (e) {
+            return res.status(403).json({ error: "Invalid or expired token" });
         }
     }
-);
 
-/**
- * GET /api/download-signed-pdf/:id
- * Public endpoint — Foundry calls this to download the signed PDF.
- * Returns raw PDF bytes, or 404 if not found / expired.
- */
-app.get("/api/download-signed-pdf/:id", async (req, res) => {
-    try {
-        const result = await getPdf(req.params.id);
-        if (!result) return res.status(404).json({ error: "PDF not found or expired" });
-
-        res.setHeader("Content-Type", "application/pdf");
-        res.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
-        res.send(Buffer.from(result.pdfData));
-    } catch (err) {
-        console.error("[download-signed-pdf]", err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-/**
- * POST /api/apply-action
- * Triggers the Foundry Action via OSDK using the signed PDF stored in DB.
- * Body: { uuid: string, filesObjectPrimaryKey: string }
- */
-app.post("/api/apply-action", async (req, res) => {
-    const { uuid, filesObjectPrimaryKey } = req.body;
-    if (!uuid || !filesObjectPrimaryKey) {
-        return res.status(400).json({ error: "uuid and filesObjectPrimaryKey are required" });
+    if (!req.file || !isValidPdf(req.file.buffer)) {
+        return res.status(400).json({ error: "Invalid or missing PDF file." });
     }
 
     try {
-        // 1. Get the newly signed PDF bytes from the database using the unique ID
-        const pdfRecord = await getPdf(uuid);
-        if (!pdfRecord) {
-            return res.status(404).json({ error: "PDF not found or expired in DB." });
-        }
+        // Direct to Foundry — no MongoDB staging needed
+        const blob = new Blob([req.file.buffer], { type: "application/pdf" });
+        const attachment = createAttachmentUpload(blob, filename);
 
-        // 2. Prepare the OSDK Attachment Upload object
-        const attachmentBlob = new Blob([pdfRecord.pdfData], { type: "application/pdf" });
-        const attachment = createAttachmentUpload(attachmentBlob, pdfRecord.filename || "signed_document.pdf");
-
-        // 3. Apply the OSDK Action
-        const actionResult = await client(attachPdfViaOsdk).applyAction({
-            ocrm_document: filesObjectPrimaryKey,
-            document: attachment,
-        });
+        const actionResult = await withRetry(() =>
+            client(attachPdfViaOsdk).applyAction({
+                ocrm_document: primaryKey,
+                document: attachment,
+            })
+        );
         
-        console.log("[apply-action] Success:", actionResult);
+        console.log("[sign-and-attach] Success:", actionResult);
         res.json({ success: true, result: actionResult });
     } catch (err) {
-        console.error("[apply-action]", err);
+        console.error("[sign-and-attach]", err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -162,9 +195,15 @@ app.post("/api/invite-participant", async (req, res) => {
     }
 
     try {
-        // Construct link (if deployed, this would use req.headers.host or an env var)
+        // Sign the link using JWT for 7 days
+        const token = jwt.sign(
+            { primaryKey, email },
+            process.env.INVITE_SECRET || "default_dev_secret",
+            { expiresIn: "7d" }
+        );
+
         const hostUrl = process.env.PUBLIC_URL || `http://${req.headers.host}`;
-        const inviteLink = `${hostUrl}/?participant=true&pdfId=${encodeURIComponent(primaryKey)}`;
+        const inviteLink = `${hostUrl}/?participant=true&pdfId=${encodeURIComponent(primaryKey)}&token=${token}`;
 
         // Note: Unless you verify your custom domain, the 'from' email must EXACTLY match 
         // the single sender you verified in the SendGrid dashboard!
@@ -206,8 +245,4 @@ app.get(/.*/, (_req, res) => {
 
 // ── Start (connect to MongoDB first, then listen) ────────────────────────────
 const PORT = process.env.PORT ?? 3000;
-
-(async () => {
-    await connectDb();
-    app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
-})();
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));

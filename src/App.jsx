@@ -28,9 +28,10 @@ export default function Root() {
     const urlParams = new URLSearchParams(window.location.search);
     const isParticipant = urlParams.get("participant") === "true";
     const participantPdfId = urlParams.get("pdfId");
+    const participantToken = urlParams.get("token");
 
     if (isParticipant && participantPdfId) {
-        return <App participantPdfId={participantPdfId} isParticipant={true} />;
+        return <App participantPdfId={participantPdfId} participantToken={participantToken} isParticipant={true} />;
     }
 
     return <WorkshopApp />;
@@ -56,7 +57,7 @@ function WorkshopApp() {
 }
 
 // ─── Core App component ─────────────────────────────────────────────────────
-function App({ workshopCtx, participantPdfId, isParticipant }) {
+function App({ workshopCtx, participantPdfId, participantToken, isParticipant }) {
     const [appState, setAppState] = useState("WAITING");
     const [pdfData, setPdfData] = useState(null);           // ArrayBuffer
     const [totalPages, setTotalPages] = useState(0);
@@ -111,7 +112,7 @@ function App({ workshopCtx, participantPdfId, isParticipant }) {
         (async () => {
             try {
                 const { downloadPdf } = await import("./services/attachmentService.js");
-                const buffer = await downloadPdf(activePrimaryKey);
+                const buffer = await downloadPdf(activePrimaryKey, participantToken);
                 setPdfData(buffer);
                 setAppState("VIEWING");
             } catch (err) {
@@ -180,7 +181,7 @@ function App({ workshopCtx, participantPdfId, isParticipant }) {
         });
     }, []);
 
-    // ── Submit (embed + upload + auto-attach via Foundry Action) ────────────
+    // ── Submit (embed + auto-attach via direct FormData) ────────────
     const handleSubmit = useCallback(async () => {
         if (!pdfData || placedSigs.length === 0) return;
         setAppState("SUBMITTING");
@@ -193,10 +194,6 @@ function App({ workshopCtx, participantPdfId, isParticipant }) {
                     { pageIndex: sig.pageIndex, x: sig.x, y: sig.y, width: sig.width, height: sig.height }
                 );
             }
-
-            // Upload signed PDF → MongoDB → get unique ID
-            const { uploadSignedPdf, applyAttachAction } = await import("./services/attachmentService.js");
-            const signedPdfId = await uploadSignedPdf(modifiedBytes, "signed_document.pdf");
 
             // Get the Files object primary key
             let filesObjectPK = null;
@@ -211,8 +208,10 @@ function App({ workshopCtx, participantPdfId, isParticipant }) {
                 throw new Error("Files object primary key is not available.");
             }
 
-            // Auto-trigger the Foundry Action to attach the PDF
-            await applyAttachAction(signedPdfId, filesObjectPK);
+            // Direct upload via FormData (no MongoDB buffer)
+            const { submitSignedPdf } = await import("./services/attachmentService.js");
+            const modifiedBlob = new Blob([modifiedBytes], { type: "application/pdf" });
+            await submitSignedPdf(filesObjectPK, modifiedBlob, "signed_document.pdf", participantToken);
 
             // Store the signed PDF locally so we can show it after closing overlay
             signedPdfRef.current = modifiedBytes;
@@ -228,7 +227,7 @@ function App({ workshopCtx, participantPdfId, isParticipant }) {
             setError(err.message);
             setAppState("ERROR");
         }
-    }, [pdfData, placedSigs, workshopCtx, isParticipant, participantPdfId]);
+    }, [pdfData, placedSigs, workshopCtx, isParticipant, participantPdfId, participantToken]);
 
     const handleRetry = () => {
         setError(null);
