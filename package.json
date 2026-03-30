@@ -15,7 +15,7 @@
     "@osdk/foundry": "^2.51.0",
     "@osdk/oauth": "^1.7.0",
     "@osdk/workshop-iframe-custom-widget": "^1.1.1",
-    "@testing-pdf/sdk": "^0.3.0",
+    "@testing-pdf/sdk": "^0.4.0",
     "express": "^5.2.1",
     "lucide-react": "^0.577.0",
     "mongodb": "^7.1.0",
