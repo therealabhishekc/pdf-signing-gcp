@@ -12,7 +12,7 @@
 import express from "express";
 import { fileURLToPath } from "url";
 import path from "path";
-import { Resend } from "resend";
+import sgMail from "@sendgrid/mail";
 import { connectDb, storePdf, getPdf } from "./db.js";
 import client from "./foundryClient.js";
 import { createAttachmentUpload } from "@osdk/client";
@@ -27,8 +27,8 @@ import { OCrmDocument, attachPdfViaOsdk } from "@testing-pdf/sdk";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
-// ── Resend setup ────────────────────────────────────────────────────────
-const resend = new Resend(process.env.RESEND_API_KEY);
+// ── SendGrid setup ────────────────────────────────────────────────────────
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use(express.json());
@@ -166,10 +166,10 @@ app.post("/api/invite-participant", async (req, res) => {
         const hostUrl = process.env.PUBLIC_URL || `http://${req.headers.host}`;
         const inviteLink = `${hostUrl}/?participant=true&pdfId=${encodeURIComponent(primaryKey)}`;
 
-        // Note: Unless you verify a custom domain in Resend, you must use 'onboarding@resend.dev'
-        // and you can only send emails to the email address you signed up with.
-        const { data, error: resendError } = await resend.emails.send({
-            from: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
+        // Note: Unless you verify your custom domain, the 'from' email must EXACTLY match 
+        // the single sender you verified in the SendGrid dashboard!
+        const msg = {
+            from: process.env.SENDGRID_FROM_EMAIL || "abhishek.chandrashekher@aavya.com",
             to: email,
             subject: "You've been invited to sign a document",
             html: `
@@ -180,18 +180,21 @@ app.post("/api/invite-participant", async (req, res) => {
                 </a>
                 <p>Or copy this link: <br> ${inviteLink}</p>
             `,
-        });
+        };
 
-        if (resendError) {
-            console.error("[invite-participant] Resend API rejected email:", resendError);
-            return res.status(500).json({ error: `Resend API Error: ${resendError.message}` });
-        }
+        const response = await sgMail.send(msg);
 
-        console.log("[invite-participant] Email successfully queued by Resend. ID: " + data.id);
+        console.log(`[invite-participant] Email successfully queued by SendGrid. Payload Header:`, response[0].headers["x-message-id"]);
         res.json({ success: true, link: inviteLink });
     } catch (error) {
         console.error("[invite-participant] E-mail send failed:", error);
-        res.status(500).json({ error: `Nodemailer Error: ${error.message || 'Timeout/Unknown'}` });
+        
+        // Enhance logging so SendGrid's native internal JSON errors surface to Render logs properly.
+        if (error.response) {
+            console.error(error.response.body);
+        }
+
+        res.status(500).json({ error: `SendGrid API Error: ${error.message || 'Timeout/Unknown'}` });
     }
 });
 

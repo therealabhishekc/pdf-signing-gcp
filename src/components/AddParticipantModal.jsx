@@ -25,14 +25,14 @@ export default function AddParticipantModal({ onClose, primaryKey }) {
     };
 
     return (
-        <div className="modal-overlay">
-            <div className="modal-content" style={{ maxWidth: 450 }}>
+        <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
+            <div className="modal" style={{ maxWidth: 450 }}>
                 <div className="modal-header">
-                    <h2 className="modal-title">
+                    <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center' }}>
                         <Mail size={20} style={{ marginRight: 8 }} />
                         Add Participant
-                    </h2>
-                    <button className="btn btn-icon" onClick={onClose}>
+                    </h3>
+                    <button className="modal-close" onClick={onClose}>
                         <X size={20} />
                     </button>
                 </div>
@@ -82,10 +82,10 @@ export default function AddParticipantModal({ onClose, primaryKey }) {
                                 </div>
                             )}
 
-                            <div className="modal-actions" style={{ marginTop: 24, display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                            <div className="modal-footer" style={{ marginTop: 24 }}>
                                 <button
                                     type="button"
-                                    className="btn btn-secondary"
+                                    className="btn btn-ghost"
                                     onClick={onClose}
                                     disabled={sending}
                                 >
@@ -104,7 +104,7 @@ export default function AddParticipantModal({ onClose, primaryKey }) {
                 </div>
 
                 {success && (
-                    <div className="modal-actions">
+                    <div className="modal-footer">
                         <button className="btn btn-primary" onClick={onClose}>
                             Done
                         </button>
