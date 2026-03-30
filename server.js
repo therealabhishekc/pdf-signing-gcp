@@ -15,12 +15,13 @@ import path from "path";
 import nodemailer from "nodemailer";
 import { connectDb, storePdf, getPdf } from "./db.js";
 import client from "./foundryClient.js";
+import { createAttachmentUpload } from "@osdk/client";
 // Note: In real setup, you would have ran: npm install @testing-pdf/sdk
 // Since it's a private Foundry package, we import what we can or rely on standard structures.
 // We disable eslint for unresolved imports here so we don't crash if the module isn't strictly found during linting.
 /* eslint-disable import/no-unresolved */
 // @ts-ignore
-import { OCrmDocument, aattachPdfViaOsdk } from "@testing-pdf/sdk";
+import { OCrmDocument, attachPdfViaOsdk } from "@testing-pdf/sdk";
 /* eslint-enable import/no-unresolved */
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -111,7 +112,7 @@ app.get("/api/download-signed-pdf/:id", async (req, res) => {
 
 /**
  * POST /api/apply-action
- * Triggers the Foundry Action via OSDK.
+ * Triggers the Foundry Action via OSDK using the signed PDF stored in DB.
  * Body: { uuid: string, filesObjectPrimaryKey: string }
  */
 app.post("/api/apply-action", async (req, res) => {
@@ -121,10 +122,22 @@ app.post("/api/apply-action", async (req, res) => {
     }
 
     try {
-        const actionResult = await client(aattachPdfViaOsdk).applyAction({
-            fileObject: filesObjectPrimaryKey,
-            uuid: uuid,
+        // 1. Get the newly signed PDF bytes from the database using the unique ID
+        const pdfRecord = await getPdf(uuid);
+        if (!pdfRecord) {
+            return res.status(404).json({ error: "PDF not found or expired in DB." });
+        }
+
+        // 2. Prepare the OSDK Attachment Upload object
+        const attachmentBlob = new Blob([pdfRecord.pdfData], { type: "application/pdf" });
+        const attachment = createAttachmentUpload(attachmentBlob, pdfRecord.filename || "signed_document.pdf");
+
+        // 3. Apply the OSDK Action
+        const actionResult = await client(attachPdfViaOsdk).applyAction({
+            ocrm_document: filesObjectPrimaryKey,
+            document: attachment,
         });
+        
         console.log("[apply-action] Success:", actionResult);
         res.json({ success: true, result: actionResult });
     } catch (err) {
