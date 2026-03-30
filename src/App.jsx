@@ -7,6 +7,7 @@ import SignatureSidebar from "./components/SignatureSidebar.jsx";
 import DraggableSignature from "./components/DraggableSignature.jsx";
 import StatusOverlay from "./components/StatusOverlay.jsx";
 import Toolbar from "./components/Toolbar.jsx";
+import AddParticipantModal from "./components/AddParticipantModal.jsx";
 import { embedSignature } from "./services/pdfSigner.js";
 
 // Apply saved theme on load (before React renders)
@@ -23,7 +24,19 @@ import { SIGNING_WIDGET_CONFIG } from "./workshopConfig.js";
 //   WAITING → LOADING → VIEWING ↔ SIGNING → SUBMITTING → DONE | ERROR
 
 // ─── Main export ────────────────────────────────────────────────────────────
-export default function WorkshopApp() {
+export default function Root() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const isParticipant = urlParams.get("participant") === "true";
+    const participantPdfId = urlParams.get("pdfId");
+
+    if (isParticipant && participantPdfId) {
+        return <App participantPdfId={participantPdfId} isParticipant={true} />;
+    }
+
+    return <WorkshopApp />;
+}
+
+function WorkshopApp() {
     const workshopContext = useWorkshopContext(SIGNING_WIDGET_CONFIG);
 
     return visitLoadingState(workshopContext, {
@@ -43,7 +56,7 @@ export default function WorkshopApp() {
 }
 
 // ─── Core App component ─────────────────────────────────────────────────────
-function App({ workshopCtx }) {
+function App({ workshopCtx, participantPdfId, isParticipant }) {
     const [appState, setAppState] = useState("WAITING");
     const [pdfData, setPdfData] = useState(null);           // ArrayBuffer
     const [totalPages, setTotalPages] = useState(0);
@@ -53,42 +66,44 @@ function App({ workshopCtx }) {
     const [signatureLibrary, setSignatureLibrary] = useState([]);  // [{ id, dataUrl }] — sidebar library (max 15)
     const [placedSigs, setPlacedSigs] = useState([]);        // [{ id, pageIndex, x, y, width, height, dataUrl }]
     const [error, setError] = useState(null);
+    const [showParticipantModal, setShowParticipantModal] = useState(false);
+    
     const pdfViewerRef = useRef(null);
-    const lastLoadedRid = useRef(null);                      // track which RID is currently displayed
+    const lastLoadedRid = useRef(null);                      // track which key is currently displayed
     const signedPdfRef = useRef(null);                        // holds signed PDF bytes after submit
 
-    // isSigned is only true when Workshop explicitly sends boolean true.
-    // null, undefined, false, or unloaded state → false → Sign button shown.
-    const isSigned =
-        workshopCtx?.isSigned?.fieldValue?.status === "LOADED" &&
-        workshopCtx?.isSigned?.fieldValue?.value === true;
+    let isSigned = false;
+    let activePrimaryKey = null;
 
-    // ── React to Workshop context changes ────────────────────────────────────
-    // Re-downloads the PDF whenever pdfAttachmentRid changes (e.g. user selects
-    // a different Files object in Workshop → variable updates → new PDF loads).
+    if (isParticipant) {
+        activePrimaryKey = participantPdfId;
+    } else {
+        const pkField = workshopCtx?.filesObjectPrimaryKey?.fieldValue;
+        if (pkField?.status === "LOADED" && pkField.value) {
+            activePrimaryKey = pkField.value;
+        }
+
+        isSigned =
+            workshopCtx?.isSigned?.fieldValue?.status === "LOADED" &&
+            workshopCtx?.isSigned?.fieldValue?.value === true;
+    }
+
+    // ── React to App context changes ────────────────────────────────────
     useEffect(() => {
-        if (!workshopCtx) return;
-
-        const ridField = workshopCtx.pdfAttachmentRid?.fieldValue;
-        // The field value is wrapped in an async state: { status, value }
-        if (!ridField || ridField.status !== "LOADED" || !ridField.value) {
-            // RID cleared — go back to empty state
-            if (ridField?.status === "LOADED" && !ridField.value) {
-                lastLoadedRid.current = null;
-                setPdfData(null);
-                setPlacedSigs([]);
-                setAppState("WAITING");
-            }
+        if (!activePrimaryKey) {
+            // cleared
+            lastLoadedRid.current = null;
+            setPdfData(null);
+            setPlacedSigs([]);
+            setAppState("WAITING");
             return;
         }
 
-        const attachmentRid = ridField.value;
-
         // Skip if this is the same RID we already have loaded
-        if (attachmentRid === lastLoadedRid.current) return;
+        if (activePrimaryKey === lastLoadedRid.current) return;
 
-        // New RID — reset state and download the new PDF
-        lastLoadedRid.current = attachmentRid;
+        // New Key — reset state and download the new PDF
+        lastLoadedRid.current = activePrimaryKey;
         setPdfData(null);
         setPlacedSigs([]);
         setCurrentPage(1);
@@ -96,7 +111,7 @@ function App({ workshopCtx }) {
         (async () => {
             try {
                 const { downloadPdf } = await import("./services/attachmentService.js");
-                const buffer = await downloadPdf(attachmentRid);
+                const buffer = await downloadPdf(activePrimaryKey);
                 setPdfData(buffer);
                 setAppState("VIEWING");
             } catch (err) {
@@ -104,7 +119,7 @@ function App({ workshopCtx }) {
                 setAppState("ERROR");
             }
         })();
-    }, [workshopCtx?.pdfAttachmentRid?.fieldValue]);
+    }, [activePrimaryKey]);
 
     // ── Toolbar controls ─────────────────────────────────────────────────────
     const handlePrevPage = () => setCurrentPage((p) => Math.max(1, p - 1));
@@ -183,12 +198,17 @@ function App({ workshopCtx }) {
             const { uploadSignedPdf, applyAttachAction } = await import("./services/attachmentService.js");
             const signedPdfId = await uploadSignedPdf(modifiedBytes, "signed_document.pdf");
 
-            // Get the Files object primary key from Workshop context
-            const pkField = workshopCtx?.filesObjectPrimaryKey?.fieldValue;
-            const filesObjectPK = pkField?.status === "LOADED" ? pkField.value : null;
+            // Get the Files object primary key
+            let filesObjectPK = null;
+            if (isParticipant) {
+                filesObjectPK = participantPdfId;
+            } else {
+                const pkField = workshopCtx?.filesObjectPrimaryKey?.fieldValue;
+                filesObjectPK = pkField?.status === "LOADED" ? pkField.value : null;
+            }
 
             if (!filesObjectPK) {
-                throw new Error("Files object primary key is not available from Workshop.");
+                throw new Error("Files object primary key is not available.");
             }
 
             // Auto-trigger the Foundry Action to attach the PDF
@@ -198,18 +218,17 @@ function App({ workshopCtx }) {
             signedPdfRef.current = modifiedBytes;
 
             // Also write back to Workshop for state tracking
-            workshopCtx.onSignComplete.executeEvent();
-
-            // Optimistic UI: mark as signed immediately so closing the overlay
-            // shows "Doc Already Signed" even before Foundry propagates the change
-            workshopCtx.isSigned.setLoadedValue(true);
+            if (!isParticipant) {
+                workshopCtx.onSignComplete.executeEvent();
+                workshopCtx.isSigned.setLoadedValue(true);
+            }
 
             setAppState("DONE");
         } catch (err) {
             setError(err.message);
             setAppState("ERROR");
         }
-    }, [pdfData, placedSigs, workshopCtx]);
+    }, [pdfData, placedSigs, workshopCtx, isParticipant, participantPdfId]);
 
     const handleRetry = () => {
         setError(null);
@@ -264,6 +283,8 @@ function App({ workshopCtx }) {
                         onDownload={handleDownload}
                         canSubmit={placedSigs.length > 0}
                         isSigned={isSigned}
+                        isParticipant={isParticipant}
+                        onAddParticipant={() => setShowParticipantModal(true)}
                     />
 
                     <div className="app-body">
@@ -323,6 +344,14 @@ function App({ workshopCtx }) {
                 <SignatureModal
                     onConfirm={handleSignatureConfirm}
                     onClose={() => setAppState("VIEWING")}
+                />
+            )}
+
+            {/* Add Participant Modal */}
+            {showParticipantModal && (
+                <AddParticipantModal
+                    primaryKey={activePrimaryKey}
+                    onClose={() => setShowParticipantModal(false)}
                 />
             )}
 

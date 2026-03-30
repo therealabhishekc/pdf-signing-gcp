@@ -5,11 +5,11 @@
 
 /**
  * Download a PDF from Foundry via the backend proxy.
- * @param {string} attachmentRid
+ * @param {string} primaryKey
  * @returns {Promise<ArrayBuffer>}
  */
-export async function downloadPdf(attachmentRid) {
-    const res = await fetch(`/api/download-pdf?rid=${encodeURIComponent(attachmentRid)}`);
+export async function downloadPdf(primaryKey) {
+    const res = await fetch(`/api/download-pdf?primaryKey=${encodeURIComponent(primaryKey)}`);
     if (!res.ok) throw new Error(`Failed to download PDF (HTTP ${res.status})`);
     return await res.arrayBuffer();
 }
@@ -46,6 +46,24 @@ export async function applyAttachAction(uuid, filesObjectPrimaryKey) {
     if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || `Action failed (HTTP ${res.status})`);
+    }
+    return await res.json();
+}
+
+/**
+ * Sends an email invite to a participant to sign the document.
+ * @param {string} email
+ * @param {string} primaryKey
+ */
+export async function sendParticipantEmail(email, primaryKey) {
+    const res = await fetch("/api/invite-participant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, primaryKey }),
+    });
+    if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Failed to send email (HTTP ${res.status})`);
     }
     return await res.json();
 }
