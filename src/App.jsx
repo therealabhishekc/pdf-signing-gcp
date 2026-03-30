@@ -73,7 +73,8 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
     const lastLoadedRid = useRef(null);                      // track which key is currently displayed
     const signedPdfRef = useRef(null);                        // holds signed PDF bytes after submit
 
-    let isSigned = false;
+    const [participantIsSigned, setParticipantIsSigned] = useState(false);
+
     let activePrimaryKey = null;
 
     if (isParticipant) {
@@ -83,11 +84,11 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
         if (pkField?.status === "LOADED" && pkField.value) {
             activePrimaryKey = pkField.value;
         }
-
-        isSigned =
-            workshopCtx?.isSigned?.fieldValue?.status === "LOADED" &&
-            workshopCtx?.isSigned?.fieldValue?.value === true;
     }
+
+    const isSigned = isParticipant
+        ? participantIsSigned
+        : (workshopCtx?.isSigned?.fieldValue?.status === "LOADED" && workshopCtx?.isSigned?.fieldValue?.value === true);
 
     // ── React to App context changes ────────────────────────────────────
     useEffect(() => {
@@ -112,8 +113,13 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
         (async () => {
             try {
                 const { downloadPdf } = await import("./services/attachmentService.js");
-                const buffer = await downloadPdf(activePrimaryKey, participantToken);
+                const { buffer, isSigned: downloadedIsSigned } = await downloadPdf(activePrimaryKey, participantToken);
                 setPdfData(buffer);
+                
+                if (isParticipant && downloadedIsSigned) {
+                    setParticipantIsSigned(true);
+                }
+                
                 setAppState("VIEWING");
             } catch (err) {
                 setError(err.message);
@@ -209,15 +215,18 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
             }
 
             // Direct upload via FormData (no MongoDB buffer)
-            const { submitSignedPdf } = await import("./services/attachmentService.js");
+            const { submitSignedPdf, markParticipantSigned } = await import("./services/attachmentService.js");
             const modifiedBlob = new Blob([modifiedBytes], { type: "application/pdf" });
             await submitSignedPdf(filesObjectPK, modifiedBlob, "signed_document.pdf", participantToken);
 
             // Store the signed PDF locally so we can show it after closing overlay
             signedPdfRef.current = modifiedBytes;
 
-            // Also write back to Workshop for state tracking
-            if (!isParticipant) {
+            // Mark completion in Foundry
+            if (isParticipant && participantToken) {
+                await markParticipantSigned(participantToken);
+                setParticipantIsSigned(true);
+            } else if (!isParticipant) {
                 workshopCtx.onSignComplete.executeEvent();
                 workshopCtx.isSigned.setLoadedValue(true);
             }

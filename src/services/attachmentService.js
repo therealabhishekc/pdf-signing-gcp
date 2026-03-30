@@ -24,7 +24,9 @@ export async function downloadPdf(primaryKey, token = null) {
         }
         throw new Error(`Failed to download PDF: ${errMsg}`);
     }
-    return await res.arrayBuffer();
+    const buffer = await res.arrayBuffer();
+    const isSigned = res.headers.get("x-is-signed") === "true";
+    return { buffer, isSigned };
 }
 
 /**
@@ -56,19 +58,64 @@ export async function submitSignedPdf(primaryKey, pdfBlob, filename = "signed_do
 }
 
 /**
- * Sends an email invite to a participant to sign the document.
+ * Adds a multi-signer participant and emails them the magic link.
  * @param {string} email
- * @param {string} primaryKey
+ * @param {string} documentId
  */
-export async function sendParticipantEmail(email, primaryKey) {
-    const res = await fetch("/api/invite-participant", {
+export async function addParticipant(email, documentId) {
+    const res = await fetch("/api/participants/add", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, primaryKey }),
+        body: JSON.stringify({ email, documentId }),
     });
     if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || `Failed to send email (HTTP ${res.status})`);
+        throw new Error(errData.error || `Failed to add participant (HTTP ${res.status})`);
+    }
+    return await res.json();
+}
+
+/**
+ * Gets all participants for a specific document.
+ * @param {string} documentId 
+ */
+export async function getParticipants(documentId) {
+    const res = await fetch(`/api/participants?documentId=${encodeURIComponent(documentId)}`);
+    if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Failed to fetch participants (HTTP ${res.status})`);
+    }
+    return await res.json();
+}
+
+/**
+ * Marks an external participant as signed using their JWT Token.
+ * @param {string} token 
+ */
+export async function markParticipantSigned(token) {
+    const res = await fetch("/api/participants/mark-signed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+    });
+    if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Failed to mark signed (HTTP ${res.status})`);
+    }
+    return await res.json();
+}
+
+/**
+ * Deletes an external participant matching a primary key.
+ * @param {string} participantId 
+ */
+export async function deleteParticipant(participantId) {
+    const res = await fetch(`/api/participants/${encodeURIComponent(participantId)}`, {
+        method: "DELETE",
+    });
+    if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Failed to delete participant (HTTP ${res.status})`);
     }
     return await res.json();
 }

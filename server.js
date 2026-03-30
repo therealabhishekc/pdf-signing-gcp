@@ -23,7 +23,14 @@ import { createAttachmentUpload } from "@osdk/client";
 // We disable eslint for unresolved imports here so we don't crash if the module isn't strictly found during linting.
 /* eslint-disable import/no-unresolved */
 // @ts-ignore
-import { OCrmDocument, attachPdfViaOsdk } from "@testing-pdf/sdk";
+import { 
+    OCrmDocument, 
+    attachPdfViaOsdk,
+    OCrmDocumentParticipants,
+    createOcrmDocumentParticipants,
+    editOcrmDocumentParticipants,
+    deleteOcrmDocumentParticipants 
+} from "@testing-pdf/sdk";
 /* eslint-enable import/no-unresolved */
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -77,12 +84,26 @@ app.get("/api/download-pdf", async (req, res) => {
     const { primaryKey, token } = req.query;
     if (!primaryKey) return res.status(400).json({ error: "primaryKey is required" });
 
+    let isParticipantSigned = false;
+
     // Enforce JWT validation if a token is explicitly passed (Participant Link)
     if (token) {
         try {
             const decoded = jwt.verify(token, process.env.INVITE_SECRET || "default_dev_secret");
-            if (decoded.primaryKey !== primaryKey) {
+            if (decoded.documentId !== primaryKey && decoded.primaryKey !== primaryKey) {
                 return res.status(403).json({ error: "Token is not valid for this document" });
+            }
+            
+            // If the participant explicitly has an ID, check if they signed
+            if (decoded.participantId) {
+                try {
+                    const participant = await withRetry(() => client(OCrmDocumentParticipants).fetchOne(decoded.participantId));
+                    if (participant && participant.isSigned) {
+                        isParticipantSigned = true;
+                    }
+                } catch (e) {
+                    console.log("[download-pdf] Participant fetch failed (might be legacy token)", e.message);
+                }
             }
         } catch (e) {
             return res.status(403).json({ error: "Invalid or expired token" });
@@ -112,6 +133,7 @@ app.get("/api/download-pdf", async (req, res) => {
 
         res.setHeader("Content-Type", metadata.mediaType || "application/pdf");
         res.setHeader("Content-Disposition", `attachment; filename="${metadata.filename || "document.pdf"}"`);
+        if (isParticipantSigned) res.setHeader("X-Is-Signed", "true");
 
         // Stream PDF contents directly instead of buffering in RAM
         if (contentRes.body && typeof contentRes.body.getReader === 'function') {
@@ -151,7 +173,7 @@ app.post("/api/sign-and-attach", upload.single("pdf"), async (req, res) => {
     if (token && token !== "null" && token !== "undefined") {
         try {
             const decoded = jwt.verify(token, process.env.INVITE_SECRET || "default_dev_secret");
-            if (decoded.primaryKey !== primaryKey) {
+            if (decoded.documentId !== primaryKey && decoded.primaryKey !== primaryKey) {
                 return res.status(403).json({ error: "Token is not valid for this document" });
             }
         } catch (e) {
@@ -184,28 +206,50 @@ app.post("/api/sign-and-attach", upload.single("pdf"), async (req, res) => {
 });
 
 /**
- * POST /api/invite-participant
- * Sends an email invite with realistic payload
+ * POST /api/participants/add
+ * Replaces invite-participant. Creates participant object via Foundry Action then emails.
  */
-app.post("/api/invite-participant", async (req, res) => {
-    const { email, primaryKey } = req.body;
-    if (!email || !primaryKey) {
-        return res.status(400).json({ error: "email and primaryKey are required" });
-    }
+app.post("/api/participants/add", async (req, res) => {
+    const { email, primaryKey, documentId } = req.body;
+    const docId = documentId || primaryKey;
+    if (!email || !docId) return res.status(400).json({ error: "email and documentId are required" });
 
     try {
+        const actionResult = await withRetry(() => client(createOcrmDocumentParticipants).applyAction({
+            email,
+            documentId: docId,
+            isSigned: false,
+            signatureDate: new Date().toISOString(),
+        }, { $returnEdits: true }));
+
+        let participantId;
+        if (actionResult?.edits?.added?.[0]?.primaryKey) {
+            participantId = actionResult.edits.added[0].primaryKey;
+        } else {
+            // Fallback retrieval logic
+            await new Promise(r => setTimeout(r, 2000));
+            const participantsRes = await withRetry(() => client(OCrmDocumentParticipants)
+                .where({ documentId: { $eq: docId } })
+                .fetchPage({ $pageSize: 100 })
+            );
+            const p = participantsRes.data.find(x => x.email === email);
+            if (p) participantId = p.participantId || p.$primaryKey;
+        }
+
+        if (!participantId) {
+            console.warn("[participants/add] Could not retrieve participantId, defaulting to email identifier inside JWT.");
+        }
+
         // Sign the link using JWT for 7 days
         const token = jwt.sign(
-            { primaryKey, email },
+            { participantId, documentId: docId, email }, // Encode participantId for strict targeting!
             process.env.INVITE_SECRET || "default_dev_secret",
             { expiresIn: "7d" }
         );
 
         const hostUrl = process.env.PUBLIC_URL || `http://${req.headers.host}`;
-        const inviteLink = `${hostUrl}/?participant=true&pdfId=${encodeURIComponent(primaryKey)}&token=${token}`;
+        const inviteLink = `${hostUrl}/?participant=true&pdfId=${encodeURIComponent(docId)}&token=${token}`;
 
-        // Note: Unless you verify your custom domain, the 'from' email must EXACTLY match 
-        // the single sender you verified in the SendGrid dashboard!
         const msg = {
             from: process.env.SENDGRID_FROM_EMAIL || "abhishek.chandrashekher@aavya.com",
             to: email,
@@ -222,17 +266,75 @@ app.post("/api/invite-participant", async (req, res) => {
 
         const response = await sgMail.send(msg);
 
-        console.log(`[invite-participant] Email successfully queued by SendGrid. Payload Header:`, response[0].headers["x-message-id"]);
+        console.log(`[participants/add] Email successfully queued. Payload Header:`, response[0].headers["x-message-id"]);
         res.json({ success: true, link: inviteLink });
     } catch (error) {
-        console.error("[invite-participant] E-mail send failed:", error);
-        
-        // Enhance logging so SendGrid's native internal JSON errors surface to Render logs properly.
-        if (error.response) {
-            console.error(error.response.body);
-        }
+        console.error("[participants/add] E-mail send failed:", error);
+        if (error.response) console.error(error.response.body);
+        res.status(500).json({ error: `Participant Add Error: ${error.message || 'Timeout/Unknown'}` });
+    }
+});
 
-        res.status(500).json({ error: `SendGrid API Error: ${error.message || 'Timeout/Unknown'}` });
+/**
+ * GET /api/participants
+ * List all participants for a specific document
+ */
+app.get("/api/participants", async (req, res) => {
+    const { documentId, primaryKey } = req.query;
+    const docId = documentId || primaryKey;
+    if (!docId) return res.status(400).json({ error: "documentId is required" });
+
+    try {
+        const participants = await withRetry(() => client(OCrmDocumentParticipants)
+            .where({ documentId: { $eq: docId } })
+            .fetchPage({ $pageSize: 100 })
+        );
+        res.json({ participants: participants.data });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+/**
+ * POST /api/participants/mark-signed
+ */
+app.post("/api/participants/mark-signed", async (req, res) => {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: "token is required" });
+
+    try {
+        const decoded = jwt.verify(token, process.env.INVITE_SECRET || "default_dev_secret");
+        const participantId = decoded.participantId;
+        
+        if (!participantId) return res.status(400).json({ error: "Token lacks participantId. Cannot mark signed." });
+
+        const participant = await withRetry(() => client(OCrmDocumentParticipants).fetchOne(participantId));
+
+        await withRetry(() => client(editOcrmDocumentParticipants).applyAction({
+            OCrmDocumentParticipants: participantId,
+            isSigned: true,
+            signatureDate: new Date().toISOString(),
+            email: participant.email,
+            documentId: participant.documentId,
+        }));
+        
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+/**
+ * DELETE /api/participants/:participantId
+ */
+app.delete("/api/participants/:participantId", async (req, res) => {
+    try {
+        await withRetry(() => client(deleteOcrmDocumentParticipants).applyAction({
+            OCrmDocumentParticipants: req.params.participantId,
+        }));
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
     }
 });
 
