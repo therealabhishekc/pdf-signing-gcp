@@ -13,7 +13,6 @@ import express from "express";
 import { fileURLToPath } from "url";
 import path from "path";
 import sgMail from "@sendgrid/mail";
-import { createAttachmentUpload } from "@osdk/client";
 import multer from "multer";
 import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
