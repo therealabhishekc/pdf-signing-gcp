@@ -12,7 +12,7 @@
 import express from "express";
 import { fileURLToPath } from "url";
 import path from "path";
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import { connectDb, storePdf, getPdf } from "./db.js";
 import client from "./foundryClient.js";
 import { createAttachmentUpload } from "@osdk/client";
@@ -27,14 +27,8 @@ import { OCrmDocument, attachPdfViaOsdk } from "@testing-pdf/sdk";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
-// ── Nodemailer setup ────────────────────────────────────────────────────────
-const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-        user: "absk.pihole@gmail.com",
-        pass: "Absk@1234",
-    },
-});
+// ── Resend setup ────────────────────────────────────────────────────────
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use(express.json());
@@ -172,22 +166,28 @@ app.post("/api/invite-participant", async (req, res) => {
         const hostUrl = process.env.PUBLIC_URL || `http://${req.headers.host}`;
         const inviteLink = `${hostUrl}/?participant=true&pdfId=${encodeURIComponent(primaryKey)}`;
 
-        const mailOptions = {
-            from: "absk.pihole@gmail.com",
+        // Note: Unless you verify a custom domain in Resend, you must use 'onboarding@resend.dev'
+        // and you can only send emails to the email address you signed up with.
+        const { data, error: resendError } = await resend.emails.send({
+            from: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
             to: email,
             subject: "You've been invited to sign a document",
             html: `
                 <h3>Document Signature Request</h3>
                 <p>You have been invited to sign a document in our secure portal.</p>
-                <a href="${inviteLink}" style="padding:10px 15px; background: #007bff; color:white; text-decoration:none; border-radius:4px;">
+                <a href="${inviteLink}" style="padding:10px 15px; background: #007bff; color:white; text-decoration:none; border-radius:4px; display:inline-block; margin: 10px 0;">
                     Review and Sign Document
                 </a>
                 <p>Or copy this link: <br> ${inviteLink}</p>
-            `
-        };
+            `,
+        });
 
-        const info = await transporter.sendMail(mailOptions);
-        console.log("[invite-participant] Email sent: " + info.response);
+        if (resendError) {
+            console.error("[invite-participant] Resend API rejected email:", resendError);
+            return res.status(500).json({ error: `Resend API Error: ${resendError.message}` });
+        }
+
+        console.log("[invite-participant] Email successfully queued by Resend. ID: " + data.id);
         res.json({ success: true, link: inviteLink });
     } catch (error) {
         console.error("[invite-participant] E-mail send failed:", error);
