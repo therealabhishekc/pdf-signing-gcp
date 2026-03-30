@@ -80,11 +80,6 @@ export default function Toolbar({
             </div>
 
             <div className="toolbar-section toolbar-right">
-                {!isParticipant && (
-                    <button className="btn btn-secondary" onClick={onAddParticipant} title="Invite a participant to sign">
-                        <UserPlus size={16} /> Add Participants
-                    </button>
-                )}
                 {isSigned && (
                     <span className="signed-badge" title="This document has been signed">
                         <Lock size={14} /> Document Signed

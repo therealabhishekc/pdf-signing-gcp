@@ -1,0 +1,176 @@
+import React, { useState, useEffect } from "react";
+import { Users, Mail, Trash2, CheckCircle2, Loader2 } from "lucide-react";
+import { addParticipant, getParticipants, deleteParticipant } from "../services/attachmentService.js";
+
+export default function ParticipantSidebar({ primaryKey }) {
+    const [email, setEmail] = useState("");
+    const [sending, setSending] = useState(false);
+    const [error, setError] = useState(null);
+
+    const [participants, setParticipants] = useState([]);
+    const [loadingParticipants, setLoadingParticipants] = useState(true);
+    const [deletingId, setDeletingId] = useState(null);
+
+    const fetchParticipants = async () => {
+        setLoadingParticipants(true);
+        try {
+            const data = await getParticipants(primaryKey);
+            setParticipants(data.participants || []);
+        } catch (err) {
+            console.error("Failed to load participants", err);
+        } finally {
+            setLoadingParticipants(false);
+        }
+    };
+
+    useEffect(() => {
+        if (primaryKey) fetchParticipants();
+    }, [primaryKey]);
+
+    const handleAdd = async (e) => {
+        e.preventDefault();
+        if (!email.trim() || !email.includes("@")) return;
+
+        setSending(true);
+        setError(null);
+        try {
+            await addParticipant(email, primaryKey);
+            setEmail("");
+            fetchParticipants(); // Refresh list automatically
+        } catch (err) {
+            setError(err.message || "Failed to add participant");
+        } finally {
+            setSending(false);
+        }
+    };
+
+    const handleDelete = async (participantId) => {
+        // Optimistic UI updates feel faster, but server truth is safer
+        setDeletingId(participantId);
+        try {
+            await deleteParticipant(participantId);
+            fetchParticipants();
+        } catch (err) {
+            console.error("Failed to delete participant", err);
+            setError(err.message || "Failed to remove participant.");
+        } finally {
+            setDeletingId(null);
+        }
+    };
+
+    return (
+        <aside className="participant-sidebar">
+            <div className="sidebar-header" style={{ marginBottom: 12 }}>
+                <h4 className="sidebar-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Users size={16} /> Participants
+                </h4>
+            </div>
+
+            <div className="sidebar-list" style={{ flex: 1 }}>
+                {loadingParticipants ? (
+                    <div className="sidebar-empty">
+                        <Loader2 size={16} className="spin" style={{ margin: "0 auto 8px" }} />
+                        Loading...
+                    </div>
+                ) : participants.length === 0 ? (
+                    <p className="sidebar-empty">
+                        No participants invited yet.<br />Invite below to assign signatures!
+                    </p>
+                ) : (
+                    participants.map((p) => (
+                        <div
+                            key={p.participantId}
+                            style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 6,
+                                background: "var(--bg-surface)",
+                                border: "1px solid var(--border)",
+                                borderRadius: "var(--radius-sm)",
+                                padding: "10px",
+                            }}
+                        >
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                                <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)", wordBreak: "break-all", lineHeight: 1.3 }}>
+                                    {p.email}
+                                </span>
+                                <button
+                                    onClick={() => handleDelete(p.participantId)}
+                                    disabled={deletingId === p.participantId}
+                                    style={{
+                                        background: "transparent",
+                                        border: "none",
+                                        color: "var(--danger)",
+                                        cursor: "pointer",
+                                        padding: "2px",
+                                        opacity: deletingId === p.participantId ? 0.4 : 0.9,
+                                        marginTop: -2,
+                                        marginRight: -4
+                                    }}
+                                    title="Revoke and Remove Participant"
+                                >
+                                    {deletingId === p.participantId ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />}
+                                </button>
+                            </div>
+                            
+                            <div style={{ 
+                                display: "flex", 
+                                alignItems: "center", 
+                                gap: 4, 
+                                fontSize: 11, 
+                                fontWeight: 500,
+                                color: p.isSigned ? "var(--success)" : "var(--text-muted)",
+                                marginTop: 2 
+                            }}>
+                                {p.isSigned ? (
+                                    <><CheckCircle2 size={12} /> Signed</>
+                                ) : (
+                                    <><Loader2 size={12} /> Pending</>
+                                )}
+                            </div>
+                        </div>
+                    ))
+                )}
+            </div>
+
+            {/* Bottom Add Section */}
+            <div style={{ padding: "16px", borderTop: "1px solid var(--border)", background: "var(--bg-surface-light)" }}>
+                <form onSubmit={handleAdd} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>
+                        Invite new participant via email
+                    </p>
+                    <input
+                        type="email"
+                        placeholder="user@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        disabled={sending}
+                        style={{
+                            width: "100%",
+                            padding: "8px 10px",
+                            borderRadius: "var(--radius-sm)",
+                            border: "1px solid var(--border)",
+                            background: "var(--bg-app)",
+                            color: "var(--text-primary)",
+                            fontSize: 13,
+                        }}
+                        required
+                    />
+                    <button
+                        type="submit"
+                        className="btn btn-primary"
+                        disabled={!email.trim() || sending}
+                        style={{ width: "100%", justifyContent: "center", padding: "8px" }}
+                    >
+                        {sending ? <Loader2 size={14} className="spin" /> : <><Mail size={14} /> Send Invite</>}
+                    </button>
+                    {error && (
+                        <div style={{ color: "var(--danger)", fontSize: 11, marginTop: 4 }}>
+                            {error}
+                        </div>
+                    )}
+                </form>
+            </div>
+        </aside>
+    );
+}

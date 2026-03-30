@@ -7,7 +7,7 @@ import SignatureSidebar from "./components/SignatureSidebar.jsx";
 import DraggableSignature from "./components/DraggableSignature.jsx";
 import StatusOverlay from "./components/StatusOverlay.jsx";
 import Toolbar from "./components/Toolbar.jsx";
-import AddParticipantModal from "./components/AddParticipantModal.jsx";
+import ParticipantSidebar from "./components/ParticipantSidebar.jsx";
 import { embedSignature } from "./services/pdfSigner.js";
 
 // Apply saved theme on load (before React renders)
@@ -67,7 +67,6 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
     const [signatureLibrary, setSignatureLibrary] = useState([]);  // [{ id, dataUrl }] — sidebar library (max 15)
     const [placedSigs, setPlacedSigs] = useState([]);        // [{ id, pageIndex, x, y, width, height, dataUrl }]
     const [error, setError] = useState(null);
-    const [showParticipantModal, setShowParticipantModal] = useState(false);
     
     const pdfViewerRef = useRef(null);
     const lastLoadedRid = useRef(null);                      // track which key is currently displayed
@@ -292,10 +291,12 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
                         canSubmit={placedSigs.length > 0}
                         isSigned={isSigned}
                         isParticipant={isParticipant}
-                        onAddParticipant={() => setShowParticipantModal(true)}
                     />
 
                     <div className="app-body">
+                        {!isParticipant && (
+                            <ParticipantSidebar primaryKey={activePrimaryKey} />
+                        )}
                         <div className="pdf-workspace" ref={pdfViewerRef}>
                             <PdfViewer
                                 pdfData={pdfData}
@@ -352,14 +353,6 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
                 <SignatureModal
                     onConfirm={handleSignatureConfirm}
                     onClose={() => setAppState("VIEWING")}
-                />
-            )}
-
-            {/* Add Participant Modal */}
-            {showParticipantModal && (
-                <AddParticipantModal
-                    primaryKey={activePrimaryKey}
-                    onClose={() => setShowParticipantModal(false)}
                 />
             )}
 
