@@ -10,7 +10,16 @@
  */
 export async function downloadPdf(primaryKey) {
     const res = await fetch(`/api/download-pdf?primaryKey=${encodeURIComponent(primaryKey)}`);
-    if (!res.ok) throw new Error(`Failed to download PDF (HTTP ${res.status})`);
+    if (!res.ok) {
+        let errMsg = `HTTP ${res.status}`;
+        try {
+            const errData = await res.json();
+            if (errData.error) errMsg = errData.error;
+        } catch (e) {
+            // ignore JSON parse error
+        }
+        throw new Error(`Failed to download PDF: ${errMsg}`);
+    }
     return await res.arrayBuffer();
 }
 
