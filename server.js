@@ -191,7 +191,7 @@ app.post("/api/invite-participant", async (req, res) => {
         res.json({ success: true, link: inviteLink });
     } catch (error) {
         console.error("[invite-participant] E-mail send failed:", error);
-        res.status(500).json({ error: "Failed to send email" });
+        res.status(500).json({ error: `Nodemailer Error: ${error.message || 'Timeout/Unknown'}` });
     }
 });
 
