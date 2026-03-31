@@ -25,7 +25,8 @@ import { createAttachmentUpload } from "@osdk/client";
 // @ts-ignore
 import { 
     OCrmDocument, 
-    attachPdfViaOsdk,
+    attachPdfViaOsdkProspect,
+    attachPdfViaOsdkForSalesRep,
     OCrmDocumentParticipants,
     createOcrmDocumentParticipants,
     editOcrmDocumentParticipants,
@@ -163,7 +164,7 @@ app.get("/api/download-pdf", async (req, res) => {
  * Body: FormData containing { pdf (File), primaryKey, token, filename }
  */
 app.post("/api/sign-and-attach", upload.single("pdf"), async (req, res) => {
-    const { primaryKey, token, filename = "signed_document.pdf" } = req.body;
+    const { primaryKey, token, filename = "signed_document.pdf", workshopRole = "Prospect" } = req.body;
 
     if (!primaryKey) {
         return res.status(400).json({ error: "primaryKey is required" });
@@ -190,8 +191,12 @@ app.post("/api/sign-and-attach", upload.single("pdf"), async (req, res) => {
         const blob = new Blob([req.file.buffer], { type: "application/pdf" });
         const attachment = createAttachmentUpload(blob, filename);
 
+        const actionToRun = workshopRole === "Sales Rep" 
+            ? attachPdfViaOsdkForSalesRep 
+            : attachPdfViaOsdkProspect;
+
         const actionResult = await withRetry(() =>
-            client(attachPdfViaOsdk).applyAction({
+            client(actionToRun).applyAction({
                 ocrm_document: primaryKey,
                 document: attachment,
             })

@@ -75,6 +75,7 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
     const [participantIsSigned, setParticipantIsSigned] = useState(false);
 
     let activePrimaryKey = null;
+    let workshopRole = "Prospect";
 
     if (isParticipant) {
         activePrimaryKey = participantPdfId;
@@ -82,6 +83,11 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
         const pkField = workshopCtx?.filesObjectPrimaryKey?.fieldValue;
         if (pkField?.status === "LOADED" && pkField.value) {
             activePrimaryKey = pkField.value;
+        }
+        
+        const roleField = workshopCtx?.workshopRole?.fieldValue;
+        if (roleField?.status === "LOADED" && roleField.value) {
+            workshopRole = roleField.value;
         }
     }
 
@@ -216,7 +222,7 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
             // Direct upload via FormData (no MongoDB buffer)
             const { submitSignedPdf, markParticipantSigned } = await import("./services/attachmentService.js");
             const modifiedBlob = new Blob([modifiedBytes], { type: "application/pdf" });
-            await submitSignedPdf(filesObjectPK, modifiedBlob, "signed_document.pdf", participantToken);
+            await submitSignedPdf(filesObjectPK, modifiedBlob, "signed_document.pdf", participantToken, workshopRole);
 
             // Store the signed PDF locally so we can show it after closing overlay
             signedPdfRef.current = modifiedBytes;
@@ -235,7 +241,7 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
             setError(err.message);
             setAppState("ERROR");
         }
-    }, [pdfData, placedSigs, workshopCtx, isParticipant, participantPdfId, participantToken]);
+    }, [pdfData, placedSigs, workshopCtx, isParticipant, participantPdfId, participantToken, workshopRole]);
 
     const handleRetry = () => {
         setError(null);

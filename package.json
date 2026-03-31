@@ -14,7 +14,7 @@
     "@osdk/client": "^2.7.3",
     "@osdk/oauth": "^1.7.0",
     "@osdk/workshop-iframe-custom-widget": "^1.1.1",
-    "@testing-pdf/sdk": "^0.5.0",
+    "@testing-pdf/sdk": "^0.6.0",
     "express": "^5.2.1",
     "lucide-react": "^0.577.0",
     "multer": "^1.4.5-lts.1",

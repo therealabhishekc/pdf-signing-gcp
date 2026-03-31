@@ -24,8 +24,20 @@ export const SIGNING_WIDGET_CONFIG = [
             },
         },
     },
-
-
+    {
+        fieldId: "workshopRole",
+        field: {
+            type: "single",
+            label: "Workshop Role (Prospect or Sales Rep)",
+            fieldValue: {
+                type: "inputOutput",
+                variableType: {
+                    type: "string",
+                    defaultValue: "Prospect",
+                },
+            },
+        },
+    },
     {
         fieldId: "isSigned",
         field: {

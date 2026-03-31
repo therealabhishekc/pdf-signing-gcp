@@ -35,14 +35,17 @@ export async function downloadPdf(primaryKey, token = null) {
  * @param {string} primaryKey
  * @param {Blob} pdfBlob
  * @param {string} filename
- * @param {string|null} token
+ * @param {string} token - Optional participant JWT
+ * @param {string} workshopRole - Optional role ('Prospect' | 'Sales Rep')
  */
-export async function submitSignedPdf(primaryKey, pdfBlob, filename = "signed_document.pdf", token = null) {
+export async function submitSignedPdf(primaryKey, pdfBlob, filename = "signed_document.pdf", token = null, workshopRole = "Prospect") {
     const formData = new FormData();
     formData.append("pdf", pdfBlob, filename);
     formData.append("primaryKey", primaryKey);
-    formData.append("filename", filename);
-    if (token) formData.append("token", token);
+    formData.append("workshopRole", workshopRole);
+    if (token) {
+        formData.append("token", token);
+    }
 
     const res = await fetch("/api/sign-and-attach", {
         method: "POST",
