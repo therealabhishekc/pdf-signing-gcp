@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Users, Mail, Trash2, CheckCircle2 } from "lucide-react";
+import { Users, Mail, Trash2, CheckCircle2, Loader2 } from "lucide-react";
 import { addParticipant, getParticipants, deleteParticipant } from "../services/attachmentService.js";
 
 export default function ParticipantSidebar({ primaryKey }) {
