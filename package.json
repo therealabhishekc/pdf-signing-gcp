@@ -16,7 +16,7 @@
     "@osdk/oauth": "^1.7.0",
     "@osdk/workshop-iframe-custom-widget": "^1.1.1",
     "@sendgrid/mail": "^8.1.4",
-    "@testing-pdf/sdk": "^0.6.0",
+    "@testing-pdf/sdk": "^0.7.0",
     "express": "^5.2.1",
     "express-rate-limit": "^7.2.0",
     "jsonwebtoken": "^9.0.2",

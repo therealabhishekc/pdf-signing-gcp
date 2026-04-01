@@ -45,7 +45,6 @@ export default function ParticipantSidebar({ primaryKey }) {
     };
 
     const handleDelete = async (participantId) => {
-        // Optimistic UI updates feel faster, but server truth is safer
         setDeletingId(participantId);
         try {
             await deleteParticipant(participantId);
@@ -55,6 +54,29 @@ export default function ParticipantSidebar({ primaryKey }) {
             setError(err.message || "Failed to remove participant.");
         } finally {
             setDeletingId(null);
+        }
+    };
+
+    /**
+     * Formats a Palantir timestamp into "03 Mar 2026 03:14 PM IST"
+     * @param {string|number|null} ts - ISO string or epoch ms from Palantir
+     */
+    const formatSignatureDate = (ts) => {
+        if (!ts) return null;
+        try {
+            const date = new Date(ts);
+            if (isNaN(date.getTime())) return null;
+            return date.toLocaleString("en-IN", {
+                timeZone: "Asia/Kolkata",
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+            }).replace(",", "") + " IST";
+        } catch {
+            return null;
         }
     };
 
@@ -77,59 +99,90 @@ export default function ParticipantSidebar({ primaryKey }) {
                         No participants invited yet.<br />Invite below to assign signatures!
                     </p>
                 ) : (
-                    participants.map((p) => (
-                        <div
-                            key={p.participantId}
-                            style={{
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: 6,
-                                background: "var(--bg-surface)",
-                                border: "1px solid var(--border)",
-                                borderRadius: "var(--radius-sm)",
-                                padding: "10px",
-                            }}
-                        >
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                                <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)", wordBreak: "break-all", lineHeight: 1.3 }}>
-                                    {p.email}
-                                </span>
+                    participants.map((p) => {
+                        const signedAt = formatSignatureDate(p.signatureDate);
+                        const isSigned = p.isSigned;
+                        return (
+                            <div
+                                key={p.participantId}
+                                style={{
+                                    display: "flex",
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    background: "var(--bg-surface)",
+                                    border: "1px solid var(--border)",
+                                    borderRadius: "var(--radius-sm)",
+                                    padding: "10px",
+                                    marginBottom: "8px"
+                                }}
+                            >
+                                {/* Left: participant info */}
+                                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                                    <span style={{
+                                        fontSize: 13,
+                                        fontWeight: 500,
+                                        color: "var(--text-primary)",
+                                        wordBreak: "break-all",
+                                        lineHeight: 1.3,
+                                    }}>
+                                        {p.email}
+                                    </span>
+
+                                    <div style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 4,
+                                        fontSize: 11,
+                                        fontWeight: 500,
+                                        color: isSigned ? "var(--success)" : "var(--text-muted)",
+                                    }}>
+                                        {isSigned ? (
+                                            <>
+                                                <CheckCircle2 size={12} />
+                                                <span>Signed</span>
+                                                {signedAt && (
+                                                    <span style={{
+                                                        color: "var(--text-muted)",
+                                                        fontWeight: 400,
+                                                        marginLeft: 2,
+                                                    }}>
+                                                        · {signedAt}
+                                                    </span>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <><Loader2 size={12} /> Pending</>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Right: delete button — vertically centered */}
                                 <button
                                     onClick={() => handleDelete(p.participantId)}
-                                    disabled={deletingId === p.participantId}
+                                    disabled={isSigned || deletingId === p.participantId}
                                     style={{
+                                        flexShrink: 0,
                                         background: "transparent",
                                         border: "none",
                                         color: "var(--danger)",
-                                        cursor: "pointer",
-                                        padding: "2px",
-                                        opacity: deletingId === p.participantId ? 0.4 : 0.9,
-                                        marginTop: -2,
-                                        marginRight: -4
+                                        cursor: isSigned ? "not-allowed" : "pointer",
+                                        padding: "4px",
+                                        opacity: isSigned || deletingId === p.participantId ? 0.3 : 0.9,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
                                     }}
-                                    title="Revoke and Remove Participant"
+                                    title={isSigned ? "Cannot remove a signed participant" : "Revoke and Remove Participant"}
                                 >
-                                    {deletingId === p.participantId ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />}
+                                    {deletingId === p.participantId
+                                        ? <Loader2 size={14} className="spin" />
+                                        : <Trash2 size={14} />
+                                    }
                                 </button>
                             </div>
-                            
-                            <div style={{ 
-                                display: "flex", 
-                                alignItems: "center", 
-                                gap: 4, 
-                                fontSize: 11, 
-                                fontWeight: 500,
-                                color: p.isSigned ? "var(--success)" : "var(--text-muted)",
-                                marginTop: 2 
-                            }}>
-                                {p.isSigned ? (
-                                    <><CheckCircle2 size={12} /> Signed</>
-                                ) : (
-                                    <><Loader2 size={12} /> Pending</>
-                                )}
-                            </div>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
             </div>
 
