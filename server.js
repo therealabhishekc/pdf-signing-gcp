@@ -191,9 +191,17 @@ app.post("/api/sign-and-attach", upload.single("pdf"), async (req, res) => {
         const blob = new Blob([req.file.buffer], { type: "application/pdf" });
         const attachment = createAttachmentUpload(blob, filename);
 
-        const actionToRun = workshopRole === "Sales Rep" 
-            ? attachPdfViaOsdkForSalesRep 
-            : attachPdfViaOsdkProspect;
+        // For participant flows (token present), workshopRole is not applicable —
+        // they always attach to the parent OCrmDocument regardless of which Workshop loaded it.
+        // For Workshop users, route to the correct action based on role.
+        const isParticipantUpload = !!(token && token !== "null" && token !== "undefined");
+        let actionToRun;
+        if (isParticipantUpload) {
+            // Participants just need to attach the PDF — use Prospect action as the default
+            actionToRun = workshopRole === "Sales Rep" ? attachPdfViaOsdkForSalesRep : attachPdfViaOsdkProspect;
+        } else {
+            actionToRun = workshopRole === "Sales Rep" ? attachPdfViaOsdkForSalesRep : attachPdfViaOsdkProspect;
+        }
 
         const actionResult = await withRetry(() =>
             client(actionToRun).applyAction({
@@ -318,13 +326,13 @@ app.post("/api/participants/mark-signed", async (req, res) => {
         await withRetry(() => client(editOcrmDocumentParticipants).applyAction({
             OCrmDocumentParticipants: participantId,
             isSigned: true,
-            signatureDate: new Date().toISOString(),
             email: participant.email,
             documentId: participant.documentId,
         }));
         
         res.json({ success: true });
     } catch (e) {
+        console.error("[mark-signed] Error:", e?.message, JSON.stringify(e?.cause || e?.body || ""));
         res.status(500).json({ error: e.message });
     }
 });
