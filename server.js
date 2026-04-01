@@ -95,15 +95,21 @@ app.get("/api/download-pdf", async (req, res) => {
                 return res.status(403).json({ error: "Token is not valid for this document" });
             }
             
-            // If the participant explicitly has an ID, check if they signed
+            // Hard revocation check — if the participant record was deleted from Palantir,
+            // deny access immediately. This invalidates the link the moment they are removed.
             if (decoded.participantId) {
                 try {
                     const participant = await withRetry(() => client(OCrmDocumentParticipants).fetchOne(decoded.participantId));
-                    if (participant && participant.isSigned) {
+                    if (!participant) {
+                        return res.status(403).json({ error: "Your access to this document has been revoked." });
+                    }
+                    if (participant.isSigned) {
                         isParticipantSigned = true;
                     }
                 } catch (e) {
-                    console.log("[download-pdf] Participant fetch failed (might be legacy token)", e.message);
+                    // fetchOne throws when the object doesn't exist — treat as revoked
+                    console.warn("[download-pdf] Participant record not found — access revoked:", e.message);
+                    return res.status(403).json({ error: "Your access to this document has been revoked." });
                 }
             }
         } catch (e) {
