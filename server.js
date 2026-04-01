@@ -43,6 +43,9 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use(express.json());
 
+// Trust Render's load balancer so express-rate-limit can read the real client IP
+app.set("trust proxy", 1);
+
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 50,
