@@ -37,6 +37,7 @@ export default function ParticipantSidebar({ primaryKey }) {
         try {
             await addParticipant(email, primaryKey);
             setEmail("");
+            setIsEmailValid(false);
             fetchParticipants(); // Refresh list automatically
         } catch (err) {
             setError(err.message || "Failed to add participant");
