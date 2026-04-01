@@ -73,6 +73,7 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
     const signedPdfRef = useRef(null);                        // holds signed PDF bytes after submit
 
     const [participantIsSigned, setParticipantIsSigned] = useState(false);
+    const [isRevoked, setIsRevoked] = useState(false);
 
     let activePrimaryKey = null;
     let workshopRole = "Prospect";
@@ -127,8 +128,14 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
                 
                 setAppState("VIEWING");
             } catch (err) {
-                setError(err.message);
-                setAppState("ERROR");
+                // Detect hard revocation from the server — show dedicated modal, not generic error
+                if (err.message?.toLowerCase().includes("revoked")) {
+                    setIsRevoked(true);
+                    setAppState("REVOKED");
+                } else {
+                    setError(err.message);
+                    setAppState("ERROR");
+                }
             }
         })();
     }, [activePrimaryKey]);
@@ -278,8 +285,45 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
 
     return (
         <div className="app">
+            {/* Revocation modal — shown when participant's access has been explicitly removed */}
+            {isRevoked && (
+                <div style={{
+                    position: "fixed", inset: 0, zIndex: 200,
+                    background: "rgba(0,0,0,0.7)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    backdropFilter: "blur(6px)",
+                }}>
+                    <div style={{
+                        background: "var(--bg-surface)",
+                        border: "1px solid var(--border)",
+                        borderRadius: "var(--radius)",
+                        padding: "40px 36px",
+                        maxWidth: 420,
+                        width: "90%",
+                        textAlign: "center",
+                        boxShadow: "0 24px 64px rgba(0,0,0,0.4)",
+                    }}>
+                        <div style={{
+                            width: 56, height: 56,
+                            borderRadius: "50%",
+                            background: "rgba(239,68,68,0.12)",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            margin: "0 auto 20px",
+                            fontSize: 26,
+                        }}>🚫</div>
+                        <h2 style={{ margin: "0 0 10px", fontSize: 20, fontWeight: 700, color: "var(--text-primary)" }}>
+                            Access Revoked
+                        </h2>
+                        <p style={{ margin: 0, fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6 }}>
+                            Your access to this document has been revoked by the document owner.
+                            Please contact them if you believe this is a mistake.
+                        </p>
+                    </div>
+                </div>
+            )}
+
             {/* Status overlays for non-viewing states */}
-            <StatusOverlay state={appState} error={error} onRetry={handleRetry} onClose={handleDoneClose} />
+            {!isRevoked && <StatusOverlay state={appState} error={error} onRetry={handleRetry} onClose={handleDoneClose} />}
 
             {/* Main PDF workspace */}
             {isViewing && (

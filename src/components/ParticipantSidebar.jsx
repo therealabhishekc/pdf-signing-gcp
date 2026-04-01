@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Users, Mail, Trash2, CheckCircle2, Loader2 } from "lucide-react";
+import { Users, Mail, Trash2, CheckCircle2 } from "lucide-react";
 import { addParticipant, getParticipants, deleteParticipant } from "../services/attachmentService.js";
 
 export default function ParticipantSidebar({ primaryKey }) {
     const [email, setEmail] = useState("");
     const [sending, setSending] = useState(false);
     const [error, setError] = useState(null);
+    const [isEmailValid, setIsEmailValid] = useState(false);
 
     const [participants, setParticipants] = useState([]);
     const [loadingParticipants, setLoadingParticipants] = useState(true);
@@ -29,7 +30,7 @@ export default function ParticipantSidebar({ primaryKey }) {
 
     const handleAdd = async (e) => {
         e.preventDefault();
-        if (!email.trim() || !email.includes("@")) return;
+        if (!isEmailValid || sending) return;
 
         setSending(true);
         setError(null);
@@ -58,26 +59,43 @@ export default function ParticipantSidebar({ primaryKey }) {
     };
 
     /**
-     * Formats a Palantir timestamp into "03 Mar 2026 03:14 PM IST"
-     * @param {string|number|null} ts - ISO string or epoch ms from Palantir
+     * Formats a Palantir timestamp using the viewer's local timezone.
+     * e.g. "03 Mar 2026 03:14 PM IST" in India, "03 Mar 2026 09:44 AM EST" in New York
      */
     const formatSignatureDate = (ts) => {
         if (!ts) return null;
         try {
             const date = new Date(ts);
             if (isNaN(date.getTime())) return null;
-            return date.toLocaleString("en-IN", {
-                timeZone: "Asia/Kolkata",
+
+            // Detect the user's local timezone and its short abbreviation
+            const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const tzAbbr = new Intl.DateTimeFormat("en", {
+                timeZone: userTz,
+                timeZoneName: "short",
+            }).formatToParts(date).find(p => p.type === "timeZoneName")?.value || "";
+
+            const formatted = date.toLocaleString("en-GB", {
+                timeZone: userTz,
                 day: "2-digit",
                 month: "short",
                 year: "numeric",
                 hour: "2-digit",
                 minute: "2-digit",
                 hour12: true,
-            }).replace(",", "") + " IST";
+            });
+            return `${formatted} ${tzAbbr}`.replace(",", "");
         } catch {
             return null;
         }
+    };
+
+    /** Validates email with a proper RFC-style regex */
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    const handleEmailChange = (e) => {
+        const val = e.target.value;
+        setEmail(val);
+        setIsEmailValid(EMAIL_RE.test(val.trim()));
     };
 
     return (
@@ -152,7 +170,18 @@ export default function ParticipantSidebar({ primaryKey }) {
                                                 )}
                                             </>
                                         ) : (
-                                            <><Loader2 size={12} /> Pending</>
+                                            <>
+                                                {/* Pulsing dot animation for pending */}
+                                                <span style={{
+                                                    display: "inline-block",
+                                                    width: 8, height: 8,
+                                                    borderRadius: "50%",
+                                                    background: "var(--text-muted)",
+                                                    animation: "pulse-dot 1.5s ease-in-out infinite",
+                                                    flexShrink: 0,
+                                                }} />
+                                                Pending
+                                            </>
                                         )}
                                     </div>
                                 </div>
@@ -196,7 +225,7 @@ export default function ParticipantSidebar({ primaryKey }) {
                         type="email"
                         placeholder="user@example.com"
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        onChange={handleEmailChange}
                         disabled={sending}
                         style={{
                             width: "100%",
@@ -212,10 +241,10 @@ export default function ParticipantSidebar({ primaryKey }) {
                     <button
                         type="submit"
                         className="btn btn-primary"
-                        disabled={!email.trim() || sending}
+                        disabled={!isEmailValid || sending}
                         style={{ width: "100%", justifyContent: "center", padding: "8px" }}
                     >
-                        {sending ? <Loader2 size={14} className="spin" /> : <><Mail size={14} /> Send Invite</>}
+                        {sending ? <span style={{ display: "inline-block", width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} /> : <><Mail size={14} /> Send Invite</>}
                     </button>
                     {error && (
                         <div style={{ color: "var(--danger)", fontSize: 11, marginTop: 4 }}>
