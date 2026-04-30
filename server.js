@@ -12,7 +12,7 @@
 import express from "express";
 import { fileURLToPath } from "url";
 import path from "path";
-import sgMail from "@sendgrid/mail";
+import { google } from "googleapis";
 import multer from "multer";
 import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
@@ -37,8 +37,48 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
-// ── SendGrid setup ────────────────────────────────────────────────────────
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+// ── Gmail API setup ──────────────────────────────────────────────────────────
+// Using Application Default Credentials (ADC) since JSON key downloads are blocked by your org policy.
+// Cloud Run will automatically inject the credentials of the attached Service Account.
+const auth = new google.auth.GoogleAuth({
+    scopes: ["https://www.googleapis.com/auth/gmail.send"],
+    clientOptions: {
+        // This is the Domain-Wide Delegation impersonation target
+        subject: process.env.GMAIL_DELEGATED_USER || "abhishek.chandrashekher@aavya.com"
+    }
+});
+const gmail = google.gmail({ version: "v1", auth });
+
+// Helper to construct base64url encoded MIME email
+function createMimeMessage(to, from, subject, htmlContent, textContent) {
+    const message = [
+        `To: ${to}`,
+        `From: ${from}`,
+        `Subject: =?utf-8?B?${Buffer.from(subject).toString("base64")}?=`,
+        `MIME-Version: 1.0`,
+        `Content-Type: multipart/alternative; boundary="boundary-string"`,
+        ``,
+        `--boundary-string`,
+        `Content-Type: text/plain; charset="UTF-8"`,
+        `Content-Transfer-Encoding: 7bit`,
+        ``,
+        textContent,
+        ``,
+        `--boundary-string`,
+        `Content-Type: text/html; charset="UTF-8"`,
+        `Content-Transfer-Encoding: 7bit`,
+        ``,
+        htmlContent,
+        ``,
+        `--boundary-string--`
+    ].join("\n");
+
+    return Buffer.from(message)
+        .toString("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
+}
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use(express.json());
@@ -272,23 +312,85 @@ app.post("/api/participants/add", async (req, res) => {
         const hostUrl = process.env.PUBLIC_URL || `http://${req.headers.host}`;
         const inviteLink = `${hostUrl}/?participant=true&pdfId=${encodeURIComponent(docId)}&token=${token}`;
 
-        const msg = {
-            from: process.env.SENDGRID_FROM_EMAIL || "abhishek.chandrashekher@aavya.com",
-            to: email,
-            subject: "You've been invited to sign a document",
-            html: `
-                <h3>Document Signature Request</h3>
-                <p>You have been invited to sign a document in our secure portal.</p>
-                <a href="${inviteLink}" style="padding:10px 15px; background: #007bff; color:white; text-decoration:none; border-radius:4px; display:inline-block; margin: 10px 0;">
-                    Review and Sign Document
-                </a>
-                <p>Or copy this link: <br> ${inviteLink}</p>
-            `,
+        const fromEmail = process.env.GMAIL_FROM_ADDRESS || "confidential@aavya.com";
+        const fromName  = "Aavya Document Portal";
+        const fromHeader = `"${fromName}" <${fromEmail}>`;
+        const subject = "Action Required: You've been invited to sign a document";
+
+        const textContent = `Hi,\n\nYou have been invited to review and sign a document via the Aavya secure portal.\n\nClick the link below to get started:\n${inviteLink}\n\nThis link will expire in 7 days.\n\nIf you were not expecting this invitation, you can safely ignore this email.\n\n— The Aavya Team`;
+
+        const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Document Signature Request</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f4f7;font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f7;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+          <!-- Header -->
+          <tr>
+            <td style="background:#1a56db;padding:32px 40px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.3px;">Aavya Document Portal</h1>
+            </td>
+          </tr>
+          <!-- Body -->
+          <tr>
+            <td style="padding:40px 40px 24px;">
+              <h2 style="margin:0 0 16px;color:#111827;font-size:18px;">You have a document to sign</h2>
+              <p style="margin:0 0 24px;color:#4b5563;font-size:15px;line-height:1.6;">
+                You've been invited to review and sign a document securely via the Aavya portal.
+                Click the button below to get started.
+              </p>
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="border-radius:6px;background:#1a56db;">
+                    <a href="${inviteLink}"
+                       style="display:inline-block;padding:14px 28px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:6px;">
+                      Review &amp; Sign Document →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:24px 0 0;color:#6b7280;font-size:13px;line-height:1.5;">
+                Or copy and paste this link into your browser:<br/>
+                <a href="${inviteLink}" style="color:#1a56db;word-break:break-all;">${inviteLink}</a>
+              </p>
+            </td>
+          </tr>
+          <!-- Divider -->
+          <tr>
+            <td style="padding:0 40px;"><hr style="border:none;border-top:1px solid #e5e7eb;margin:0;"/></td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="padding:24px 40px;text-align:center;">
+              <p style="margin:0;color:#9ca3af;font-size:12px;line-height:1.6;">
+                This link will expire in <strong>7 days</strong>.<br/>
+                If you were not expecting this invitation, you can safely ignore this email.<br/><br/>
+                © ${new Date().getFullYear()} Aavya. All rights reserved.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
         };
 
-        const response = await sgMail.send(msg);
+        const rawMessage = createMimeMessage(email, fromHeader, subject, htmlContent, textContent);
 
-        console.log(`[participants/add] Email successfully queued. Payload Header:`, response[0].headers["x-message-id"]);
+        const response = await gmail.users.messages.send({
+            userId: "me",
+            requestBody: { raw: rawMessage }
+        });
+
+        console.log(`[participants/add] Email successfully queued. Payload Header:`, response.data.id);
         res.json({ success: true, link: inviteLink });
     } catch (error) {
         console.error("[participants/add] E-mail send failed:", error);
