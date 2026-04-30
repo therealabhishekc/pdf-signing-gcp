@@ -38,15 +38,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 // ── Gmail API setup ──────────────────────────────────────────────────────────
-// Using Application Default Credentials (ADC) since JSON key downloads are blocked by your org policy.
-// Cloud Run will automatically inject the credentials of the attached Service Account.
-const auth = new google.auth.GoogleAuth({
-    scopes: ["https://www.googleapis.com/auth/gmail.send"],
-    clientOptions: {
-        // This is the Domain-Wide Delegation impersonation target
-        subject: process.env.GMAIL_DELEGATED_USER || "abhishek.chandrashekher@aavya.com"
-    }
-});
+// Using a Service Account JSON Key explicitly for Domain-Wide Delegation
+const rawPrivateKey = process.env.GCP_PRIVATE_KEY || "";
+// If the key is loaded from an env var, we must unescape the newlines
+const privateKey = rawPrivateKey.replace(/\\n/g, '\n');
+
+const auth = new google.auth.JWT(
+    process.env.GCP_SERVICE_ACCOUNT_EMAIL || "email-sender@pdf-signing-494118.iam.gserviceaccount.com",
+    null,
+    privateKey,
+    ["https://www.googleapis.com/auth/gmail.send"],
+    process.env.GMAIL_DELEGATED_USER || "abhishek.chandrashekher@aavya.com"
+);
 const gmail = google.gmail({ version: "v1", auth });
 
 // Helper to construct base64url encoded MIME email
@@ -380,8 +383,7 @@ app.post("/api/participants/add", async (req, res) => {
     </tr>
   </table>
 </body>
-</html>`,
-        };
+</html>`;
 
         const rawMessage = createMimeMessage(email, fromHeader, subject, htmlContent, textContent);
 

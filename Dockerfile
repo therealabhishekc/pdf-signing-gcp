@@ -4,10 +4,6 @@ FROM node:20-alpine
 # Set the working directory inside the container
 WORKDIR /usr/src/app
 
-# Accept the Foundry Token from GCP Cloud Build
-ARG FOUNDRY_TOKEN
-ENV FOUNDRY_TOKEN=${FOUNDRY_TOKEN}
-
 # Copy package.json, lockfiles, and crucially the .npmrc file for authentication
 COPY package*.json .npmrc ./
 RUN npm install
