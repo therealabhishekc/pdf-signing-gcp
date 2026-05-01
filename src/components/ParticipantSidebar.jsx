@@ -70,23 +70,25 @@ export default function ParticipantSidebar({ primaryKey, isOpen, onToggle }) {
             const date = new Date(ts);
             if (isNaN(date.getTime())) return null;
 
-            // Detect the user's local timezone and its short abbreviation
-            const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            const tzAbbr = new Intl.DateTimeFormat("en", {
-                timeZone: userTz,
-                timeZoneName: "short",
-            }).formatToParts(date).find(p => p.type === "timeZoneName")?.value || "";
+            const day = date.getDate().toString().padStart(2, '0');
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const year = date.getFullYear();
 
-            const formatted = date.toLocaleString("en-GB", {
-                timeZone: userTz,
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: true,
-            });
-            return `${formatted} ${tzAbbr}`.replace(",", "");
+            let h = date.getHours();
+            const m = date.getMinutes().toString().padStart(2, '0');
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12;
+            h = h ? h : 12; 
+            const hourStr = h.toString().padStart(2, '0');
+
+            const offsetMinutes = -date.getTimezoneOffset();
+            const sign = offsetMinutes >= 0 ? '+' : '-';
+            const absMin = Math.abs(offsetMinutes);
+            const offsetH = Math.floor(absMin / 60);
+            const offsetM = (absMin % 60).toString().padStart(2, '0');
+            const gmtOffset = `GMT ${sign}${offsetH}:${offsetM}`;
+
+            return `${day}/${month}/${year} ${hourStr}:${m} ${ampm} ${gmtOffset}`;
         } catch {
             return null;
         }
