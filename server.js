@@ -54,10 +54,15 @@ const gmail = google.gmail({ version: "v1", auth });
 
 // Helper to construct base64url encoded MIME email
 function createMimeMessage(to, from, subject, htmlContent, textContent) {
+    const messageId = `<${Date.now()}.${Math.random().toString(36).substring(2)}@aavya.com>`;
+    const dateStr = new Date().toUTCString();
+    
     const message = [
         `To: ${to}`,
         `From: ${from}`,
         `Subject: =?utf-8?B?${Buffer.from(subject).toString("base64")}?=`,
+        `Message-ID: ${messageId}`,
+        `Date: ${dateStr}`,
         `MIME-Version: 1.0`,
         `Content-Type: multipart/alternative; boundary="boundary-string"`,
         ``,
