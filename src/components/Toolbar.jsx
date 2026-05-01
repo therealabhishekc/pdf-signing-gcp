@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Lock, Send, Download, MoreVertical, Sun, Moon, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, UserPlus } from "lucide-react";
+import { Lock, Send, Download, MoreVertical, Sun, Moon, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, UserPlus, RefreshCw } from "lucide-react";
 
 /**
  * Top toolbar: page navigation, zoom, and action buttons.
@@ -48,6 +48,14 @@ export default function Toolbar({
     return (
         <div className="toolbar">
             <div className="toolbar-section toolbar-left">
+                <button
+                    className="btn btn-icon"
+                    onClick={() => window.location.reload()}
+                    title="Refresh page"
+                >
+                    <RefreshCw size={16} />
+                </button>
+                <div style={{ width: 8 }} /> {/* Spacing */}
                 <button
                     className="btn btn-icon"
                     onClick={onPrevPage}

@@ -28,12 +28,6 @@ export default function ParticipantSidebar({ primaryKey, isOpen, onToggle }) {
         if (primaryKey) fetchParticipants();
     }, [primaryKey]);
 
-    // Background polling — silently refresh every 30s so status flips Pending → Signed automatically
-    useEffect(() => {
-        if (!primaryKey) return;
-        const interval = setInterval(fetchParticipants, 30000);
-        return () => clearInterval(interval);
-    }, [primaryKey]);
 
     const handleAdd = async (e) => {
         e.preventDefault();
