@@ -7,6 +7,7 @@ import React, { useState, useRef, useCallback } from "react";
 export default function DraggableSignature({
     id,
     dataUrl,
+    timestamp,
     initialX,
     initialY,
     initialWidth,
@@ -162,6 +163,23 @@ export default function DraggableSignature({
                 draggable={false}
                 style={{ width: "100%", height: "100%", display: "block" }}
             />
+            {timestamp && (
+                <div style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    marginTop: "2px",
+                    fontSize: `${10 * zoom}px`,
+                    color: "black",
+                    fontFamily: "Helvetica, Arial, sans-serif",
+                    whiteSpace: "nowrap",
+                    pointerEvents: "none",
+                    lineHeight: 1
+                }}>
+                    {timestamp}
+                </div>
+            )}
 
             {/* Hover UI: Copy / Remove Toolbar */}
             {(isHovered || isDragging) && (

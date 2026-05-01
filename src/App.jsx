@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { version } from "../package.json";
-import { Check } from "lucide-react";
+import { Check, PanelLeftOpen, PanelRightOpen } from "lucide-react";
 import PdfViewer from "./components/PdfViewer.jsx";
 import SignatureModal from "./components/SignatureModal.jsx";
 import SignatureSidebar from "./components/SignatureSidebar.jsx";
@@ -74,6 +74,8 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
 
     const [participantIsSigned, setParticipantIsSigned] = useState(false);
     const [isRevoked, setIsRevoked] = useState(false);
+    const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true);
+    const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
 
     let activePrimaryKey = null;
     let workshopRole = "Prospect";
@@ -162,8 +164,34 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
         setSignatureLibrary((prev) => prev.filter((s) => s.id !== id));
     }, []);
 
+    const formatSignatureDate = (ts) => {
+        if (!ts) return null;
+        try {
+            const date = new Date(ts);
+            if (isNaN(date.getTime())) return null;
+            const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const tzAbbr = new Intl.DateTimeFormat("en", {
+                timeZone: userTz,
+                timeZoneName: "short",
+            }).formatToParts(date).find(p => p.type === "timeZoneName")?.value || "";
+            const formatted = date.toLocaleString("en-GB", {
+                timeZone: userTz,
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+            });
+            return `${formatted} ${tzAbbr}`.replace(",", "");
+        } catch {
+            return null;
+        }
+    };
+
     /** Called when a sidebar thumbnail is dropped onto the PDF canvas */
     const handleDropOnPdf = useCallback((dataUrl, xPx, yPx) => {
+        const timestamp = formatSignatureDate(Date.now());
         setPlacedSigs((prev) => [
             ...prev,
             {
@@ -174,6 +202,7 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
                 width: 200,
                 height: 60,
                 dataUrl,
+                timestamp,
             },
         ]);
     }, [currentPage, zoom]);
@@ -209,7 +238,8 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
                 modifiedBytes = await embedSignature(
                     modifiedBytes,
                     sig.dataUrl,
-                    { pageIndex: sig.pageIndex, x: sig.x, y: sig.y, width: sig.width, height: sig.height }
+                    { pageIndex: sig.pageIndex, x: sig.x, y: sig.y, width: sig.width, height: sig.height },
+                    sig.timestamp
                 );
             }
 
@@ -343,9 +373,13 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
                         isParticipant={isParticipant}
                     />
 
-                    <div className="app-body">
+                    <div className="app-body" style={{ position: "relative" }}>
                         {!isParticipant && (
-                            <ParticipantSidebar primaryKey={activePrimaryKey} />
+                            <ParticipantSidebar 
+                                primaryKey={activePrimaryKey} 
+                                isOpen={isLeftSidebarOpen}
+                                onToggle={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)} 
+                            />
                         )}
                         <div className="pdf-workspace" ref={pdfViewerRef}>
                             <PdfViewer
@@ -363,6 +397,7 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
                                                     key={sig.id}
                                                     id={sig.id}
                                                     dataUrl={sig.dataUrl}
+                                                    timestamp={sig.timestamp}
                                                     initialX={sig.x}
                                                     initialY={sig.y}
                                                     initialWidth={sig.width}
@@ -392,6 +427,8 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
                                 onRemoveSignature={handleRemoveFromLibrary}
                                 maxSignatures={15}
                                 isSigned={isSigned}
+                                isOpen={isRightSidebarOpen}
+                                onToggle={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
                             />
                         )}
                     </div>

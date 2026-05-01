@@ -1,5 +1,5 @@
 import React from "react";
-import { Plus, X, GripVertical } from "lucide-react";
+import { Plus, X, GripVertical, PenTool, PanelRightClose } from "lucide-react";
 
 /**
  * SignatureSidebar — permanent right panel showing a library of created signatures.
@@ -18,6 +18,8 @@ export default function SignatureSidebar({
     onRemoveSignature,
     maxSignatures = 15,
     isSigned = false,
+    isOpen,
+    onToggle,
 }) {
     const atLimit = signatures.length >= maxSignatures;
 
@@ -27,12 +29,25 @@ export default function SignatureSidebar({
     };
 
     return (
-        <aside className="signature-sidebar">
-            <div className="sidebar-header">
-                <h4 className="sidebar-title">Signatures</h4>
-            </div>
+        <aside className={`signature-sidebar ${!isOpen ? "collapsed" : ""}`}>
+            <div className="sidebar-inner">
+                <div className="sidebar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <h4 className="sidebar-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                        <PenTool size={16} /> Signatures
+                    </h4>
+                    <button 
+                        onClick={onToggle}
+                        style={{
+                            background: "transparent", border: "none", color: "var(--text-secondary)",
+                            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: "4px"
+                        }}
+                        title="Close Sidebar"
+                    >
+                        <PanelRightClose size={16} />
+                    </button>
+                </div>
 
-            {!isSigned && (
+                {!isSigned && (
                 <button
                     className="btn btn-primary sidebar-add-btn"
                     onClick={onAddSignature}
@@ -79,6 +94,11 @@ export default function SignatureSidebar({
                         </button>
                     </div>
                 ))}
+                </div>
+            </div>
+
+            <div className="sidebar-thin-btn" onClick={onToggle} title="Open Signatures">
+                <PenTool size={20} />
             </div>
         </aside>
     );

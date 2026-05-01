@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Users, Mail, Trash2, CheckCircle2, Loader2 } from "lucide-react";
+import { Users, Mail, Trash2, CheckCircle2, Loader2, PanelLeftClose } from "lucide-react";
 import { addParticipant, getParticipants, deleteParticipant } from "../services/attachmentService.js";
 
-export default function ParticipantSidebar({ primaryKey }) {
+export default function ParticipantSidebar({ primaryKey, isOpen, onToggle }) {
     const [email, setEmail] = useState("");
     const [sending, setSending] = useState(false);
     const [error, setError] = useState(null);
@@ -107,14 +107,25 @@ export default function ParticipantSidebar({ primaryKey }) {
     };
 
     return (
-        <aside className="participant-sidebar">
-            <div className="sidebar-header" style={{ marginBottom: 12 }}>
-                <h4 className="sidebar-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Users size={16} /> Participants
-                </h4>
-            </div>
+        <aside className={`participant-sidebar ${!isOpen ? "collapsed" : ""}`}>
+            <div className="sidebar-inner">
+                <div className="sidebar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <h4 className="sidebar-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                        <Users size={16} /> Participants
+                    </h4>
+                    <button 
+                        onClick={onToggle}
+                        style={{
+                            background: "transparent", border: "none", color: "var(--text-secondary)",
+                            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: "4px"
+                        }}
+                        title="Close Sidebar"
+                    >
+                        <PanelLeftClose size={16} />
+                    </button>
+                </div>
 
-            <div className="sidebar-list" style={{ flex: 1 }}>
+                <div className="sidebar-list" style={{ flex: 1 }}>
                 {loadingParticipants ? (
                     <div className="sidebar-empty">
                         <Loader2 size={16} className="spin" style={{ margin: "0 auto 8px" }} />
@@ -260,6 +271,11 @@ export default function ParticipantSidebar({ primaryKey }) {
                         </div>
                     )}
                 </form>
+            </div>
+            </div>
+            
+            <div className="sidebar-thin-btn" onClick={onToggle} title="Open Participants">
+                <Users size={20} />
             </div>
         </aside>
     );
