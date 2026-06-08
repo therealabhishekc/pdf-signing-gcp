@@ -67,6 +67,34 @@ export const SIGNING_WIDGET_CONFIG = [
         },
     },
     {
+        fieldId: "currentUsername",
+        field: {
+            type: "single",
+            label: "Current Username",
+            fieldValue: {
+                type: "inputOutput",
+                variableType: {
+                    type: "string",
+                    defaultValue: undefined,
+                },
+            },
+        },
+    },
+    {
+        fieldId: "currentDocName",
+        field: {
+            type: "single",
+            label: "Current Doc Name",
+            fieldValue: {
+                type: "inputOutput",
+                variableType: {
+                    type: "string",
+                    defaultValue: undefined,
+                },
+            },
+        },
+    },
+    {
         fieldId: "onSignComplete",
         field: {
             type: "single",
