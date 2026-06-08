@@ -94,6 +94,12 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
         }
     }
 
+    const currentUsernameField = workshopCtx?.currentUsername?.fieldValue;
+    const currentUsername = currentUsernameField?.status === "LOADED" ? currentUsernameField.value : "";
+
+    const currentDocNameField = workshopCtx?.currentDocName?.fieldValue;
+    const currentDocName = currentDocNameField?.status === "LOADED" ? currentDocNameField.value : "";
+
     const isSigned = isParticipant
         ? participantIsSigned
         : (workshopCtx?.isSigned?.fieldValue?.status === "LOADED" && workshopCtx?.isSigned?.fieldValue?.value === true);
@@ -261,10 +267,20 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
                 throw new Error("Files object primary key is not available.");
             }
 
+            // Determine filename based on currentDocName variable from Workshop
+            const docNameField = workshopCtx?.currentDocName?.fieldValue;
+            let targetFilename = "signed_document.pdf";
+            if (docNameField?.status === "LOADED" && docNameField.value) {
+                targetFilename = docNameField.value.trim();
+                if (!targetFilename.toLowerCase().endsWith(".pdf")) {
+                    targetFilename += ".pdf";
+                }
+            }
+
             // Direct upload via FormData (no MongoDB buffer)
             const { submitSignedPdf, markParticipantSigned } = await import("./services/attachmentService.js");
             const modifiedBlob = new Blob([modifiedBytes], { type: "application/pdf" });
-            await submitSignedPdf(filesObjectPK, modifiedBlob, "signed_document.pdf", participantToken, workshopRole);
+            await submitSignedPdf(filesObjectPK, modifiedBlob, targetFilename, participantToken, workshopRole);
 
             // Store the signed PDF locally so we can show it after closing overlay
             signedPdfRef.current = modifiedBytes;
@@ -311,12 +327,22 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = isSigned ? "signed_document.pdf" : "document.pdf";
+
+        // Determine download filename based on currentDocName variable from Workshop
+        const docNameField = workshopCtx?.currentDocName?.fieldValue;
+        let targetFilename = isSigned ? "signed_document.pdf" : "document.pdf";
+        if (docNameField?.status === "LOADED" && docNameField.value) {
+            targetFilename = docNameField.value.trim();
+            if (!targetFilename.toLowerCase().endsWith(".pdf")) {
+                targetFilename += ".pdf";
+            }
+        }
+        a.download = targetFilename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-    }, [pdfData, isSigned]);
+    }, [pdfData, isSigned, workshopCtx]);
 
     return (
         <div className="app">
@@ -384,6 +410,8 @@ function App({ workshopCtx, participantPdfId, participantToken, isParticipant })
                                 primaryKey={activePrimaryKey} 
                                 isOpen={isLeftSidebarOpen}
                                 onToggle={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)} 
+                                currentUsername={currentUsername}
+                                currentDocName={currentDocName}
                             />
                         )}
                         <div className="pdf-workspace" ref={pdfViewerRef}>

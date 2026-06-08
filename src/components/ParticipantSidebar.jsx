@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Users, Mail, Trash2, CheckCircle2, Loader2, PanelLeftClose } from "lucide-react";
 import { addParticipant, getParticipants, deleteParticipant } from "../services/attachmentService.js";
 
-export default function ParticipantSidebar({ primaryKey, isOpen, onToggle }) {
+export default function ParticipantSidebar({ primaryKey, isOpen, onToggle, currentUsername, currentDocName }) {
     const [email, setEmail] = useState("");
     const [sending, setSending] = useState(false);
     const [error, setError] = useState(null);
@@ -36,7 +36,7 @@ export default function ParticipantSidebar({ primaryKey, isOpen, onToggle }) {
         setSending(true);
         setError(null);
         try {
-            await addParticipant(email, primaryKey);
+            await addParticipant(email, primaryKey, currentUsername, currentDocName);
             setEmail("");
             setIsEmailValid(false);
             fetchParticipants(); // Refresh list automatically

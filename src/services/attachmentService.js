@@ -64,12 +64,14 @@ export async function submitSignedPdf(primaryKey, pdfBlob, filename = "signed_do
  * Adds a multi-signer participant and emails them the magic link.
  * @param {string} email
  * @param {string} documentId
+ * @param {string} currentUsername
+ * @param {string} currentDocName
  */
-export async function addParticipant(email, documentId) {
+export async function addParticipant(email, documentId, currentUsername = "", currentDocName = "") {
     const res = await fetch("/api/participants/add", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, documentId }),
+        body: JSON.stringify({ email, documentId, currentUsername, currentDocName }),
     });
     if (!res.ok) {
         const errData = await res.json().catch(() => ({}));

@@ -280,7 +280,7 @@ app.post("/api/sign-and-attach", upload.single("pdf"), async (req, res) => {
  * Replaces invite-participant. Creates participant object via Foundry Action then emails.
  */
 app.post("/api/participants/add", async (req, res) => {
-    const { email, primaryKey, documentId } = req.body;
+    const { email, primaryKey, documentId, currentUsername, currentDocName } = req.body;
     const docId = documentId || primaryKey;
     if (!email || !docId) return res.status(400).json({ error: "email and documentId are required" });
 
@@ -323,9 +323,22 @@ app.post("/api/participants/add", async (req, res) => {
         const fromEmail = process.env.GMAIL_FROM_ADDRESS || "confidential@aavya.com";
         const fromName  = "Aavya Document Portal";
         const fromHeader = `"${fromName}" <${fromEmail}>`;
-        const subject = "Action Required: You've been invited to sign a document";
+        
+        const getRecipientName = (emailAddr) => {
+            if (!emailAddr) return "Valued Participant";
+            const prefix = emailAddr.split("@")[0];
+            return prefix
+                .split(/[\._-]/)
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(" ");
+        };
+        const recipientName = getRecipientName(email);
+        const docNameText = currentDocName || "a document";
+        const senderText = currentUsername ? `from ${currentUsername}` : "";
 
-        const textContent = `Hi,\n\nYou have been invited to review and sign a document via the Aavya secure portal.\n\nClick the link below to get started:\n${inviteLink}\n\nThis link will expire in 7 days.\n\nIf you were not expecting this invitation, you can safely ignore this email.\n\n— The Aavya Team`;
+        const subject = "Action Required — Document Awaiting Your Signature";
+
+        const textContent = `Hi ${recipientName},\n\nYou have received a document (${docNameText}) for your review and signature ${senderText}\n\nPlease sign the document securely through the Aavya portal at your earliest convenience. The process is quick and straightforward — simply click the link below to get started:\n${inviteLink}\n\nThis link will expire in 7 days.\n\n— The Aavya Team`;
 
         const htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -334,50 +347,59 @@ app.post("/api/participants/add", async (req, res) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Document Signature Request</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f4f4f7;font-family:Arial,Helvetica,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f7;padding:40px 0;">
+<body style="margin:0;padding:0;background-color:#f8fafc;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;padding:40px 0;">
     <tr>
       <td align="center">
-        <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-          <!-- Header -->
+        <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(30, 35, 56, 0.05);border-top: 4px solid #3AADDD;">
+          <!-- Header (Deep Navy) -->
           <tr>
-            <td style="background:#1a56db;padding:32px 40px;text-align:center;">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.3px;">Aavya Document Portal</h1>
+            <td style="background:#1E2338;padding:32px 40px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:700;letter-spacing:-0.3px;">Aavya Document Portal</h1>
+              <div style="font-size:11px;color:#3AADDD;text-transform:uppercase;letter-spacing:1.5px;margin-top:6px;font-weight:600;">Secure Signature Request</div>
             </td>
           </tr>
           <!-- Body -->
           <tr>
-            <td style="padding:40px 40px 24px;">
-              <h2 style="margin:0 0 16px;color:#111827;font-size:18px;">You have a document to sign</h2>
-              <p style="margin:0 0 24px;color:#4b5563;font-size:15px;line-height:1.6;">
-                You've been invited to review and sign a document securely via the Aavya portal.
-                Click the button below to get started.
+            <td style="padding:40px 40px 32px;">
+              <p style="margin:0 0 20px;color:#1E2338;font-size:16px;line-height:1.5;font-weight:600;">Hi ${recipientName},</p>
+              
+              <p style="margin:0 0 24px;color:#334155;font-size:15px;line-height:1.6;">
+                You have received a document (<strong>${docNameText}</strong>) for your review and signature ${senderText ? `from <strong>${senderText.replace("from ", "")}</strong>` : ""}.
               </p>
-              <table cellpadding="0" cellspacing="0">
+              
+              <p style="margin:0 0 32px;color:#334155;font-size:15px;line-height:1.6;">
+                Please sign the document securely through the Aavya portal at your earliest convenience. The process is quick and straightforward — simply click the button below to get started.
+              </p>
+              
+              <table cellpadding="0" cellspacing="0" style="margin: 0 auto 32px;">
                 <tr>
-                  <td style="border-radius:6px;background:#1a56db;">
+                  <td style="border-radius:6px;background:#4F46E5;">
                     <a href="${inviteLink}"
-                       style="display:inline-block;padding:14px 28px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:6px;">
-                      Review &amp; Sign Document →
+                       style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:6px;box-shadow: 0 4px 6px rgba(79, 70, 229, 0.15);">
+                      Review &amp; Sign Document
                     </a>
                   </td>
                 </tr>
               </table>
-              <p style="margin:24px 0 0;color:#6b7280;font-size:13px;line-height:1.5;">
-                Or copy and paste this link into your browser:<br/>
-                <a href="${inviteLink}" style="color:#1a56db;word-break:break-all;">${inviteLink}</a>
-              </p>
+              
+              <div style="background:#f1f5f9;border-left:4px solid #3AADDD;padding:16px;margin-bottom:32px;border-radius:0 8px 8px 0;">
+                <p style="margin:0 0 8px;color:#475569;font-size:13px;font-weight:600;">Direct Link:</p>
+                <p style="margin:0;color:#4F46E5;font-size:13px;line-height:1.5;word-break:break-all;">
+                  <a href="${inviteLink}" style="color:#4F46E5;text-decoration:underline;">${inviteLink}</a>
+                </p>
+              </div>
             </td>
           </tr>
           <!-- Divider -->
           <tr>
-            <td style="padding:0 40px;"><hr style="border:none;border-top:1px solid #e5e7eb;margin:0;"/></td>
+            <td style="padding:0 40px;"><hr style="border:none;border-top:1px solid #e2e8f0;margin:0;"/></td>
           </tr>
           <!-- Footer -->
           <tr>
-            <td style="padding:24px 40px;text-align:center;">
-              <p style="margin:0;color:#9ca3af;font-size:12px;line-height:1.6;">
-                This link will expire in <strong>7 days</strong>.<br/>
+            <td style="padding:32px 40px;text-align:center;background:#fafafa;">
+              <p style="margin:0;color:#64748b;font-size:12px;line-height:1.7;">
+                This secure link will expire in <strong style="color:#1E2338;">7 days</strong>.<br/>
                 If you were not expecting this invitation, you can safely ignore this email.<br/><br/>
                 © ${new Date().getFullYear()} Aavya. All rights reserved.
               </p>
