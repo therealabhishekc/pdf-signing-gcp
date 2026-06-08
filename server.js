@@ -246,7 +246,8 @@ app.post("/api/sign-and-attach", upload.single("pdf"), async (req, res) => {
     try {
         // Direct to Foundry — no MongoDB staging needed
         const blob = new Blob([req.file.buffer], { type: "application/pdf" });
-        const attachment = createAttachmentUpload(blob, filename);
+        const targetFilename = req.file?.originalname || filename;
+        const attachment = createAttachmentUpload(blob, targetFilename);
 
         // For participant flows (token present), workshopRole is not applicable —
         // they always attach to the parent OCrmDocument regardless of which Workshop loaded it.
